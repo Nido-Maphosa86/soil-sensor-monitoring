@@ -26,7 +26,7 @@ fall outside acceptable ranges.
 | Mbasa Tyam | 222056708 | Backend developer / Frontend design |
 | Tiisetso Masita | 223043636 | SRS Compiler/Frontend developer|
 | Machedi Mamello| 222001607 | SRS Compiler |
-| [Name] | [Student Number] | [Role] |
+| Caitlin Freeman | 224097774 | Project Manager / Frontend developer |
 | [Name] | [Student Number] | [Role] |
 | [Name] | [Student Number] | [Role] |
 
