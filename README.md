@@ -27,7 +27,7 @@ fall outside acceptable ranges.
 | Tiisetso Masita | 223043636 | SRS Compiler/Frontend developer|
 | Machedi Mamello| 222001607 | SRS Compiler |
 | Caitlin Freeman | 224097774 | Project Manager / Frontend developer |
-| Ayatolla Pikwa | 224135694 | SRS Compiler |
+| Ayatolla Pikwa | 224135694 | SRS Compiler / Designer |
 | [Name] | [Student Number] | [Role] |
 
 ## Current Project Stage
