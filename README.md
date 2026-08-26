@@ -28,7 +28,7 @@ fall outside acceptable ranges.
 | Machedi Mamello| 222001607 | SRS Compiler |
 | Caitlin Freeman | 224097774 | Project Manager / Frontend developer |
 | Ayatolla Pikwa | 224135694 | SRS Compiler / Designer |
-| [Name] | [Student Number] | [Role] |
+| Katlontle Seiphetlho | 224130045 | Frontend Developer |
 
 ## Current Project Stage
 
