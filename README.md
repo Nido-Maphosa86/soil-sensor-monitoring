@@ -24,7 +24,7 @@ fall outside acceptable ranges.
 |   ---  |     ---        |  ---     |
 | Nido Maphosa | 223039784 | Tech Lead / SRS Compiler / Full-Stack Developer  |
 | Mbasa Tyam | 222056708 | Backend developer / Frontend design |
-| [Masita Tiisetso] | [223043636] | [SRS Compiler /Frontend developer] |
+| Masita Tiisetso | 223043636 | SRS Compiler/Frontend developer|
 | [Name] | [Student Number] | [Role] |
 | [Name] | [Student Number] | [Role] |
 | [Name] | [Student Number] | [Role] |
