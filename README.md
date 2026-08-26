@@ -1,49 +1,35 @@
-# soil-sensor-monitoring
-# Multi-Site Smart Soil Monitoring System
+# Multi-Site Smart Soil and Environmental Monitoring System
 
-Final-year Work-Integrated Learning project · ITC327W · 2026
-Central University of Technology, Free State
+## Project Description
 
-## Overview
+A multi-site monitoring system that collects soil and environmental
+readings from fifteen sensors deployed across three locations. Readings
+are published by the sensor operator to Firebase, retrieved into a
+shared Supabase backend, and made available through a mobile application
+for field monitoring and a web application for management and analysis.
+The system interprets readings against configurable thresholds, monitors
+device health and battery status, and generates alerts when conditions
+fall outside acceptable ranges.
 
-A multi-site soil monitoring system that collects readings from
-fifteen 7-in-1 soil sensors deployed across three locations,
-stores them in a shared backend, and presents them through a
-mobile application for field monitoring and a web application
-for management and analysis.
-
-## Stack
+## Technologies
 
 - **Mobile:** Flutter
-- **Web:** ASP.NET MVC
+- **Web:** ASP.NET
 - **Backend:** Supabase (PostgreSQL, Authentication, Storage)
 - **Data source:** Third-party sensor system publishing to Firebase
-- **Schedule:** Microsoft Project
 
-## Stakeholder
+## Group Members
 
-[Name of the organisation you're working with, once confirmed]
+| Name   | Student Number |    Role  |
+|   ---  |     ---        |  ---     |
+| Nido Maphosa | 223039784 | Tech Lead / SRS Compiler / Full-Stack Developer  |
+| [Name] | [Student Number] | [Role] |
+| [Name] | [Student Number] | [Role] |
+| [Name] | [Student Number] | [Role] |
+| [Name] | [Student Number] | [Role] |
+| [Name] | [Student Number] | [Role] |
+| [Name] | [Student Number] | [Role] |
 
-## Group members
+## Current Project Stage
 
-- [Name] — [role, e.g. Facilitator / SRS compiler]
-- [Name] — [role]
-- ...
-
-## Current stage
-
-Phase 1 — Planning, Requirements and Feasibility
-
-## Repository layout
-
-- `/documentation` — SRS, feasibility report, meeting minutes
-- `/mobile` — Flutter application (added Phase 2)
-- `/web` — ASP.NET application (added Phase 2)
-- `/ingestion` — Supabase Edge Function for Firebase → Supabase (added Phase 2)
-- `/database` — SQL schema, migrations (added Phase 2)
-
-## Confidentiality
-
-No credentials, API keys, stakeholder contact details or personal
-information are stored in this repository. All secrets are held
-in environment variables outside version control.
+Planning and Requirements
