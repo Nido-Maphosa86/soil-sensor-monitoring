@@ -23,7 +23,7 @@ fall outside acceptable ranges.
 | Name   | Student Number |    Role  |
 |   ---  |     ---        |  ---     |
 | Nido Maphosa | 223039784 | Tech Lead / SRS Compiler / Full-Stack Developer  |
-| [Name] | [Student Number] | [Role] |
+| Mbasa Tyam | 222056708 | Backend developer / Frontend design |
 | [Name] | [Student Number] | [Role] |
 | [Name] | [Student Number] | [Role] |
 | [Name] | [Student Number] | [Role] |
