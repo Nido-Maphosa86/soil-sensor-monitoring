@@ -29,6 +29,7 @@ fall outside acceptable ranges.
 | Caitlin Freeman | 224097774 | Project Manager / Frontend developer |
 | Ayatolla Pikwa | 224135694 | SRS Compiler / Designer |
 | Katlontle Seiphetlho | 224130045 | Frontend Developer |
+| Thobani Mjiyakho  | 222088478 | SRS Compiler / Software Developer |
 
 ## Current Project Stage
 
