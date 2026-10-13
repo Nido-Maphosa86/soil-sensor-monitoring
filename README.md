@@ -1,36 +1,33 @@
-# Multi-Site Smart Soil and Environmental Monitoring System
+# Multi-Site Smart Soil and Environmental Monitoring System (SensorGrid)
 
 ## Project Description
-
-A multi-site monitoring system that collects soil and environmental
-readings from fifteen sensors deployed across three locations. Readings
-are published by the sensor operator to Firebase, retrieved into a
-shared Supabase backend, and made available through a mobile application
-for field monitoring and a web application for management and analysis.
-The system interprets readings against configurable thresholds, monitors
-device health and battery status, and generates alerts when conditions
-fall outside acceptable ranges.
+A multi-site monitoring system that collects soil and environmental readings from fifteen
+sensors deployed across three locations (Free State, Gauteng and North West). The sensor
+operator's gateway writes a reading from every sensor to Firebase every 30 minutes. The
+system compares each reading with configurable thresholds for its location, monitors device
+health and battery status, and raises alerts when conditions fall outside acceptable ranges.
+A mobile application supports field monitoring, and a web application supports management
+and analysis.
 
 ## Technologies
-
-- **Mobile:** Flutter
-- **Web:** ASP.NET
-- **Backend:** Supabase (PostgreSQL, Authentication, Storage)
-- **Data source:** Third-party sensor system publishing to Firebase
+- Mobile: Flutter (Android)
+- Web: ASP.NET MVC
+- Backend: Firebase (Authentication, Realtime Database, Cloud Storage, Cloud Functions)
+- Data source: third-party sensor gateway (ESP32 with 15 RS485 soil sensors) writing to Firebase
 
 ## Group Members
-
-| Name   | Student Number |    Role  |
-|   ---  |     ---        |  ---     |
-| Nido Maphosa | 223039784 | Tech Lead / SRS Compiler / Full-Stack Developer  |
-| Mbasa Tyam | 222056708 | Backend developer / Frontend design |
-| Tiisetso Masita | 223043636 | SRS Compiler/Frontend developer|
-| Machedi Mamello| 222001607 | SRS Compiler |
-| Caitlin Freeman | 224097774 | Project Manager / Frontend developer |
-| Ayatolla Pikwa | 224135694 | SRS Compiler / Designer |
-| Katlontle Seiphetlho | 224130045 | Frontend Developer |
-| Thobani Mjiyakho  | 222088478 | SRS Compiler / Software Developer |
+| Name | Role |
+|---|---|
+| Nido Maphosa | Tech Lead / SRS Compiler / Full-Stack Developer |
+| Mbasa Tyam | Backend Developer / Frontend Design |
+| Tiisetso Masita | SRS Compiler / Frontend Developer |
+| Machedi Mamello | SRS Compiler |
+| Caitlin Freeman | Project Manager / Frontend Developer |
+| Ayatolla Pikwa | SRS Compiler / Designer |
+| Katlontle Seiphetlho | Frontend Developer |
+| Thobani Mjiyakho | SRS Compiler / Software Developer |
 
 ## Current Project Stage
-
-Planning and Requirements
+Architecture and Design. The approved requirements (SRS v3.0) are extended in SRS v4.0
+with the system architecture, use case and sequence diagrams, database design (ERD),
+interface designs and navigation maps. Next stage: prototype build.
