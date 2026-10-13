@@ -28,6 +28,22 @@ and analysis.
 | Thobani Mjiyakho | SRS Compiler / Software Developer |
 
 ## Current Project Stage
-Architecture and Design. The approved requirements (SRS v3.0) are extended in SRS v4.0
-with the system architecture, use case and sequence diagrams, database design (ERD),
-interface designs and navigation maps. Next stage: prototype build.
+Architecture and Design.
+
+### Completed
+**Planning and requirements**
+- ✔ Stakeholder engagement and requirements gathering
+- ✔ Software Requirements Specification v3.0, approved by the stakeholder
+- ✔ Feasibility study, risk register, requirements change log and refined scope
+- ✔ Project schedule with baseline and progress tracker
+- ✔ Kick-off documents and project presentation
+
+**Architecture and design (SRS v4.0)**
+- ✔ System architecture: Flutter app, ASP.NET MVC web app, Firebase backend and sensor gateway
+- ✔ Use case diagram with 26 use cases
+- ✔ Seven sequence diagrams
+- ✔ Database design: ERD with 13 tables and Firebase Realtime Database structure
+- ✔ Security rules and access design
+- ✔ Interface designs for 32 screens and dialogs (Flutter and ASP.NET) with clickable Figma prototypes
+- ✔ Navigation maps for both applications
+- ✔ Requirements-to-design traceability and updated project plan
