@@ -458,3 +458,8 @@ android/local.properties
 # OS
 .DS_Store
 Thumbs.db
+# SensorGrid web console: files that must never be committed
+**/App_Data/
+*firebase-adminsdk*.json
+service-account*.json
+Keys/
