@@ -1,17 +1,9 @@
-# sensorgrid_mobile
+# SensorGrid mobile
 
-A new Flutter project.
+The Flutter app (Android first) for field officers. It signs in with Firebase Authentication and reads the same Firebase Realtime
+Database as the web console. It is being built step by step; this file is completed in the last step.
 
-## Getting Started
+Run it:
 
-This project is a starting point for a Flutter application.
-
-A few resources to get you started if this is your first Flutter project:
-
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+    cd mobile
+    flutter run
