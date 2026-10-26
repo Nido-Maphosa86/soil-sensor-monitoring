@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase files made by `flutterfire configure` (they belong to the real project, so they are NOT committed)
+lib/firebase_options.dart
+android/app/google-services.json
+
+# The real Firebase settings of the mobile app (copy firebase_config.example.json)
+firebase_config.json
