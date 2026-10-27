@@ -1,0 +1,33 @@
+@* W1 Sign in. Left: brand panel. Right: the form. Fluid: stacks on small screens. *@
+@model LoginViewModel
+@{
+    ViewData["Title"] = "Sign in";
+}
+<div class="auth">
+<partial name="_AuthPanel" model="true" />
+<div class="auth-form">
+<form method="post" asp-action="Login" class="auth-box">
+  <input type="hidden" asp-for="ReturnUrl" />
+  <div class="eyebrow" style="color:var(--brand);letter-spacing:1.6px">SECURE ACCESS</div>
+  <div style="font-size:clamp(26px,3vw,36px);font-weight:700;margin-top:14px">Sign in to the console</div>
+  <div style="font-size:15px;color:var(--tx2);margin-top:12px">Use the credentials issued by the Department of Agriculture.</div>
+  @if (Model.Error is not null)
+  {
+    <div style="margin-top:20px;padding:11px 14px;border-radius:10px;background:#FBE9E7;color:#C0392F;font-size:13px;font-weight:600">@Model.Error</div>
+  }
+  <div class="field" style="margin-top:@(Model.Error is null ? 32 : 20)px"><label for="Email">EMAIL ADDRESS</label>
+    <div class="inp" style="height:52px;border:1.5px solid var(--brand);box-shadow:0 0 0 3px rgba(16,121,90,.13);font-weight:500">
+      <input asp-for="Email" type="email" autocomplete="username" required maxlength="200" autofocus /></div></div>
+  <div class="field" style="margin-top:22px"><label for="Password">PASSWORD</label>
+    <div class="inp" style="height:52px">
+      <input asp-for="Password" type="password" autocomplete="current-password" required maxlength="200" placeholder="••••••••••••" /></div></div>
+  <div class="row" style="margin-top:22px;justify-content:space-between">
+    <label class="checkrow"><input type="checkbox" asp-for="KeepSignedIn" value="true" /> Keep me signed in on this computer</label>
+    <a asp-action="Forgot" style="font-size:13px;font-weight:600;color:var(--brand)">Forgot password?</a>
+  </div>
+  <button type="submit" style="width:100%;height:52px;border:0;border-radius:12px;background:var(--brand);box-shadow:var(--sh-btn);display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;font-weight:600;margin-top:24px;cursor:pointer">Sign in</button>
+  <div style="height:1px;background:#E4EBE7;margin-top:30px"></div>
+  <div style="font-size:12px;color:var(--tx3);margin-top:18px;line-height:1.6">Access is role based. Field officers see readings for their assigned provinces; administrators manage sensors, thresholds and accounts.</div>
+</form>
+</div>
+</div>

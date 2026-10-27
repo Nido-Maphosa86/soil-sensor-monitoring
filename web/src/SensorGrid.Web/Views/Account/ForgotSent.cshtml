@@ -1,0 +1,21 @@
+@* W1b Forgot password, state 2 of 2: the one message shown whether or not the email matched an account. *@
+@{
+    ViewData["Title"] = "Check your email";
+}
+<div class="auth">
+<partial name="_AuthPanel" model="true" />
+<div class="auth-form">
+<div class="auth-box">
+  <div style="width:56px;height:56px;border-radius:16px;background:#E3F1EB;display:flex;align-items:center;justify-content:center">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#10795A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="m4 7.5 8 5.5 8-5.5"/></svg>
+  </div>
+  <div style="font-size:30px;font-weight:700;margin-top:24px">Check your email</div>
+  <div style="font-size:15px;color:var(--tx2);margin-top:14px;line-height:1.65">If that address matches an account, a password reset link is on its way. It can take a few minutes to arrive — check your spam folder if it doesn't show up.</div>
+  <a asp-action="Login" class="logo-line" style="margin-top:32px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10795A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
+    <span style="font-size:14px;font-weight:600;color:var(--brand)">Back to sign in</span>
+  </a>
+</div>
+</div>
+</div>

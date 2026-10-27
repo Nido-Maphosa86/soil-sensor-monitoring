@@ -1,0 +1,12 @@
+@* Shown when a person opens a page their role does not allow (the server refuses it, not only the menu). *@
+@{
+    ViewData["Title"] = "Access denied";
+    ViewData["Nav"] = "";
+    ViewData["Heading"] = "Access denied";
+    ViewData["Sub"] = "Your role does not include this page";
+}
+<div class="card" style="max-width:560px">
+  <div class="h3">You do not have access to this page</div>
+  <div style="font-size:13px;color:var(--tx2);line-height:1.6;margin-top:10px">Thresholds, user accounts and sensor registration are for administrators. If you need one of these changed, ask an administrator.</div>
+  <a class="btn" asp-controller="Dashboard" asp-action="Index" style="margin-top:22px">Back to the dashboard</a>
+</div>

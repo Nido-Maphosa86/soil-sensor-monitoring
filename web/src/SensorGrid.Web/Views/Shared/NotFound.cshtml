@@ -1,0 +1,10 @@
+@* Shown when an item does not exist or is outside the person's provinces (the two cases look the same on purpose). *@
+@{
+    ViewData["Title"] = "Not found";
+    ViewData["Heading"] = "Not found";
+    ViewData["Sub"] = "We could not find that";
+}
+<div class="card" style="max-width:560px">
+  <div class="h3">@(ViewData["Message"] ?? "That page was not found.")</div>
+  <a class="btn" asp-controller="Dashboard" asp-action="Index" style="margin-top:22px">Back to the dashboard</a>
+</div>
