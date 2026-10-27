@@ -1,0 +1,56 @@
+@* W5 Sensors: province chips, search, status filter, table of 10 per page. *@
+@model SensorsPageDto
+@{
+    var shell = (ShellDto)ViewData["Shell"]!;
+    ViewData["Title"] = "Sensors";
+    ViewData["Nav"] = "Sensors";
+    ViewData["Heading"] = "Sensors";
+    ViewData["Sub"] = Model.Subtitle;
+    var site = Context.Request.Query["site"].ToString();
+    var search = Context.Request.Query["search"].ToString();
+    var state = Context.Request.Query["state"].ToString();
+    if (state == "") state = "All statuses";
+    var heads = new[] { "Sensor", "Province", "Installed", "Last reading", "Battery", "Signal", "Firmware", "Status" };
+}
+@section Right {
+  <form method="get" style="display:contents">
+    <input type="hidden" name="site" value="@site" />
+    <div class="searchbox"><i></i><input name="search" value="@search" placeholder="Search by sensor code" maxlength="20" /></div>
+    <div class="selectbox"><span data-select-label>@state</span>&nbsp;&nbsp;▾
+      <select name="state" data-autosubmit aria-label="Status">
+        @foreach (var s in SensorService.StateFilters){<option value="@s" selected="@(s == state)">@s</option>}
+      </select></div>
+  </form>
+  @if (shell.IsAdmin){<a class="btn" asp-action="Register" asp-route-site="@site">Register sensor</a>}
+}
+<div class="chips">
+  @foreach (var c in Model.Chips)
+  {
+    var on = (c.SiteId ?? "") == site;
+    <a class="chip@(on ? " on" : "")" asp-action="Index" asp-route-site="@c.SiteId" asp-route-search="@search" asp-route-state="@(state == "All statuses" ? null : state)">@c.Name&nbsp;<span style="@(on ? "opacity:.6" : "color:var(--tx3)")">@c.Count</span></a>
+  }
+</div>
+<div class="card">
+  <div class="tablewrap">
+    <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
+    <tbody>
+    @foreach (var r in Model.Rows)
+    {
+      <tr><td style="font-weight:600;padding-top:16px;padding-bottom:16px">@r.SensorId</td><td class="num">@r.Province</td><td class="num">@r.Installed</td><td class="num">@r.LastReading</td>
+        <td class="num">@r.Battery</td><td class="num">@r.Signal</td><td class="num">@r.Firmware</td><td>@Ui.Status(r.StateLabel, r.Tone)</td></tr>
+    }
+    </tbody></table>
+  </div>
+  @if (Model.Rows.Count == 0){<div class="cap" style="padding:30px 0">No sensors match these filters.</div>}
+  <div class="pager">
+    <div class="cap">Showing @Model.FromIndex – @Model.ToIndex of @Model.Total sensors</div>
+    <div class="btns">
+      <a class="btn ghost sm" asp-action="Index" asp-route-site="@site" asp-route-search="@search" asp-route-state="@state" asp-route-page="@Math.Max(1, Model.Page - 1)">Previous</a>
+      @for (var p = 1; p <= Model.PageCount; p++)
+      {
+        <a class="btn @(p == Model.Page ? "dark" : "ghost") sm" asp-action="Index" asp-route-site="@site" asp-route-search="@search" asp-route-state="@state" asp-route-page="@p">@p</a>
+      }
+      <a class="btn ghost sm" asp-action="Index" asp-route-site="@site" asp-route-search="@search" asp-route-state="@state" asp-route-page="@Math.Min(Model.PageCount, Model.Page + 1)">Next</a>
+    </div>
+  </div>
+</div>

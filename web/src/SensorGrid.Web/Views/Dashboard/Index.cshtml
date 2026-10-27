@@ -1,0 +1,76 @@
+@* W2 Dashboard: four counters, the moisture chart (24 hours / 7 days / 30 days), site status and the latest readings. *@
+@model DashboardDto
+@{
+    ViewData["Title"] = "Dashboard";
+    ViewData["Nav"] = "Dashboard";
+    ViewData["Heading"] = "Dashboard";
+    ViewData["Sub"] = Model.Subtitle;
+    var heads = new[] { "Time", "Province", "Sensor", "Moisture %", "Temp °C", "pH", "EC µS/cm", "N", "P", "K", "Status" };
+}
+@section Right {
+  <form method="get" asp-controller="Sensors" asp-action="Index" class="searchbox"><i></i><input name="search" placeholder="Search sensors" maxlength="60" /></form>
+  <div class="selectbox"><span data-select-label>Last 24 hours</span>&nbsp;&nbsp;▾
+    <select id="rangeSel" aria-label="Chart range"><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option></select></div>
+  <a class="btn" id="exportBtn" asp-controller="Readings" asp-action="Export" asp-route-range="24h">Export CSV</a>
+}
+
+<div class="grid g4">
+  @foreach (var k in Model.Kpis)
+  {
+    <div class="card kpi">
+      <div class="ico" style="background:@Ui.Bg(k.Tone)"><s style="background:@Ui.Colour(k.Tone)"></s></div>
+      <div><div class="kl">@k.Label</div><div class="kv">@k.Value</div></div>
+      <div class="ks">@k.Sub</div>
+    </div>
+  }
+</div>
+
+<div class="grid g21">
+  <div class="card chart">
+    <div class="cardhead" style="margin-bottom:8px">
+      <div><div class="h3">Soil moisture across all provinces</div>
+      <div class="cap" id="chartCaption" style="margin-top:4px">Average moisture of each province's sensors over the last 24 hours</div></div>
+      <div id="chartLegend" class="legend push"></div>
+    </div>
+    <svg id="moistureSvg" viewBox="0 0 736 220" role="img" aria-label="Soil moisture chart"></svg>
+  </div>
+
+  <div class="card">
+    <div class="cardhead"><div class="h3">Site status</div>
+      <a asp-controller="Sites" asp-action="Index" class="push" style="font-size:12px;font-weight:600;color:var(--brand)">Manage</a></div>
+    <div class="stack" style="gap:12px">
+    @foreach (var s in Model.Sites)
+    {
+      <a class="sitebox" asp-controller="Sites" asp-action="Details" asp-route-id="@s.SiteId">
+        <div class="top">
+          <div><div style="font-size:13px;font-weight:600">@s.Name</div><div style="font-size:11px;color:var(--tx3);margin-top:4px">@s.SensorsText</div></div>
+          <div style="margin-left:auto;text-align:right"><div class="pill" style="background:@Ui.Bg(s.Tone);color:@Ui.Colour(s.Tone)">@s.StatusLabel</div>
+            <div style="font-size:9px;font-weight:500;color:var(--tx4);margin-top:6px">@s.Percent% in range</div></div>
+        </div>
+        <div class="track"><i style="width:@s.Percent%;background:@Ui.Colour(s.Tone)"></i></div>
+      </a>
+    }
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="cardhead">
+    <div class="h3">Latest readings</div>
+    <div class="cap">@Model.ReadingsCaption</div>
+    <a asp-controller="Readings" asp-action="Index" class="push" style="font-size:12px;font-weight:600;color:var(--brand)">Open readings log</a></div>
+  <div class="tablewrap">
+    <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
+    <tbody>
+    @foreach (var r in Model.Latest)
+    {
+      <tr><td style="color:var(--tx3)">@r.Time</td><td>@r.Province</td><td style="font-weight:600">@r.Sensor</td>
+        @foreach (var v in r.Values){<td class="num">@v</td>}
+        <td>@Ui.Status(r.Status, r.Tone)</td></tr>
+    }
+    </tbody></table>
+  </div>
+  @if (Model.Latest.Count == 0){<div class="cap" style="padding:20px 0">No readings yet.</div>}
+</div>
+
+@section Scripts { <script>SensorGrid.initDashboard();</script> }

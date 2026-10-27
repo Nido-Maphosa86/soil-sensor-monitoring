@@ -1,0 +1,92 @@
+@* W3 Sites: one card per province, current averages by province, and a recent activity list. *@
+@model SitesPageDto
+@{
+    ViewData["Title"] = "Sites";
+    ViewData["Nav"] = "Sites";
+    ViewData["Heading"] = "Sites";
+    ViewData["Sub"] = Model.Subtitle;
+    var heads = new[] { "Province", "Moisture %", "Temp °C", "pH", "EC µS/cm", "N mg/kg", "P mg/kg", "K mg/kg", "Status" };
+    var isAdmin = ((ShellDto)ViewData["Shell"]!).IsAdmin;
+}
+@section Right {
+  @if (isAdmin){<button type="button" class="btn" data-open="siteModal">Add site</button>}
+}
+<div class="grid g3">
+@foreach (var c in Model.Cards)
+{
+  <div class="card">
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <div><div style="font-size:17px;font-weight:700">@c.Name</div>
+      <div class="cap" style="margin-top:5px">@c.Coordinates</div></div>
+      <div class="pill" style="margin-left:auto;background:@Ui.Bg(c.Tone);color:@Ui.Colour(c.Tone)">@c.StatusLabel</div></div>
+    <div style="font-size:12px;color:var(--tx2);margin-top:15px">@c.CropLine</div>
+    <div style="height:1px;background:var(--line2);margin-top:15px"></div>
+    <div style="display:flex;margin-top:15px;gap:12px">
+      <div style="flex:1"><div class="cap">Sensors</div><div style="font-size:20px;font-weight:700;margin-top:3px">@c.Sensors</div></div>
+      <div style="flex:1"><div class="cap">Readings today</div><div style="font-size:20px;font-weight:700;margin-top:3px">@c.ReadingsToday</div></div>
+      <div style="flex:1"><div class="cap">In range</div><div style="font-size:20px;font-weight:700;margin-top:3px;color:@Ui.Colour(c.Tone)">@c.InRangePercent%</div></div>
+    </div>
+    <div class="row" style="margin-top:20px;gap:10px">
+      <a class="btn ghost sm" asp-action="Details" asp-route-id="@c.SiteId">Open site</a>
+      @if (isAdmin){<a class="btn ghost sm" asp-controller="Thresholds" asp-action="Index" asp-route-site="@c.SiteId">Edit thresholds</a>}
+    </div>
+  </div>
+}
+</div>
+@if (Model.Cards.Count == 0){<div class="card cap">No provinces yet.</div>}
+
+<div class="card">
+  <div class="h3">Current averages by province</div>
+  <div class="cap" style="margin-top:5px;margin-bottom:16px">@Model.AverageCaption</div>
+  <div class="tablewrap">
+    <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
+    <tbody>
+    @foreach (var r in Model.Averages)
+    {
+      <tr><td style="font-weight:600;padding-top:18px;padding-bottom:18px">@r.Name</td>
+        @foreach (var v in r.Values){<td class="num">@v</td>}
+        <td>@Ui.Status(r.StatusText, r.Tone)</td></tr>
+    }
+    </tbody></table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="h3" style="margin-bottom:8px">Recent activity</div>
+  @foreach (var f in Model.Feed)
+  {
+    <div class="feed">
+      <s style="width:8px;height:8px;border-radius:50%;background:@Ui.Colour(f.Tone);display:block"></s>
+      <span style="font-size:12px;color:var(--tx3);width:130px">@f.When</span>
+      <span style="font-size:12.5px;font-weight:600;width:130px">@f.Province</span>
+      <span style="font-size:12.5px;color:var(--tx2);flex:1;min-width:200px">@f.Text</span></div>
+  }
+  @if (Model.Feed.Count == 0){<div class="cap" style="padding:14px 0">No activity yet.</div>}
+</div>
+
+@if (isAdmin)
+{
+  @* Add site (administrators only). The code is the two letter prefix the sensor gateway uses in sensor codes (FS for FS-01). *@
+  <div class="modal" id="siteModal">
+    <div class="backdrop" data-close></div>
+    <form class="box" method="post" asp-action="Add">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:16px;font-weight:700">Add site</div>
+        <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="cap" style="margin-top:4px">The site starts with the standard pigeon pea threshold bands. Review them on the Thresholds page, then register its sensors.</div>
+      <div style="display:flex;gap:12px;margin-top:18px">
+        <div style="flex:0 0 110px"><label class="lab" for="siteId">CODE</label><input type="text" id="siteId" name="SiteId" required maxlength="2" pattern="[A-Za-z]{2}" placeholder="FS" style="text-transform:uppercase" /></div>
+        <div style="flex:1"><label class="lab" for="siteName">NAME</label><input type="text" id="siteName" name="Name" required maxlength="60" placeholder="Free State" /></div></div>
+      <div class="cap" style="margin-top:6px">Two letters. Sensor codes at this site start with them, for example FS-01.</div>
+      <div style="display:flex;gap:12px;margin-top:14px">
+        <div style="flex:1"><label class="lab" for="siteLat">LATITUDE</label><input type="text" id="siteLat" name="Latitude" required inputmode="decimal" maxlength="12" placeholder="-28.4541" /></div>
+        <div style="flex:1"><label class="lab" for="siteLon">LONGITUDE</label><input type="text" id="siteLon" name="Longitude" required inputmode="decimal" maxlength="12" placeholder="26.7968" /></div></div>
+      <div style="display:flex;gap:12px;margin-top:14px">
+        <div style="flex:1"><label class="lab" for="siteCrop">CROP</label><input type="text" id="siteCrop" name="Crop" required maxlength="40" value="Pigeon pea" /></div>
+        <div style="flex:1"><label class="lab" for="sitePlanted">PLANTING DATE</label><input type="date" id="sitePlanted" name="PlantingDate" required /></div></div>
+      <div style="margin-top:14px"><label class="lab" for="siteDesc">DESCRIPTION</label><input type="text" id="siteDesc" name="Description" maxlength="200" placeholder="Optional" /></div>
+      <hr />
+      <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn">Add site</button></div>
+    </form>
+  </div>
+}
