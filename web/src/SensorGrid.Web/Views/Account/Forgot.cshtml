@@ -1,0 +1,21 @@
+@* W1b step 1: ask for the email. (The prototype shows state 2 of 2, the confirmation; this is state 1 in the same style.) *@
+@model ForgotViewModel
+@{
+    ViewData["Title"] = "Forgot password";
+}
+<div class="auth">
+<partial name="_AuthPanel" model="true" />
+<div class="auth-form">
+<form method="post" asp-action="Forgot" class="auth-box">
+  <div class="eyebrow" style="color:var(--brand);letter-spacing:1.6px">PASSWORD RESET</div>
+  <div style="font-size:30px;font-weight:700;margin-top:14px">Forgot your password?</div>
+  <div style="font-size:15px;color:var(--tx2);margin-top:12px;line-height:1.6">Enter the email address you sign in with and we will send a reset link.</div>
+  <div class="field" style="margin-top:30px"><label for="Email">EMAIL ADDRESS</label>
+    <div class="inp" style="height:52px"><input asp-for="Email" type="email" required maxlength="200" autofocus /></div></div>
+  <button type="submit" style="width:100%;height:52px;border:0;border-radius:12px;background:var(--brand);box-shadow:var(--sh-btn);color:#fff;font-size:16px;font-weight:600;margin-top:24px;cursor:pointer">Send reset link</button>
+  <a asp-action="Login" class="logo-line" style="margin-top:28px">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10795A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
+    <span style="font-size:14px;font-weight:600;color:var(--brand)">Back to sign in</span></a>
+</form>
+</div>
+</div>

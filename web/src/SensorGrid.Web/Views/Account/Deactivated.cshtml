@@ -1,0 +1,15 @@
+@* Shown when a deactivated account tries to sign in: access is denied and a link leads back to sign in. *@
+@{
+    ViewData["Title"] = "Access denied";
+}
+<div class="auth">
+<partial name="_AuthPanel" model="true" />
+<div class="auth-form">
+<div class="auth-box">
+  <div class="eyebrow" style="color:var(--brand);letter-spacing:1.6px">ACCESS DENIED</div>
+  <div style="font-size:clamp(26px,3vw,36px);font-weight:700;margin-top:14px">This account is deactivated</div>
+  <div style="font-size:15px;color:var(--tx2);margin-top:12px">Please contact your administrator if you think this is a mistake.</div>
+  <a class="btn" style="margin-top:24px" asp-action="Login">Back to sign in</a>
+</div>
+</div>
+</div>

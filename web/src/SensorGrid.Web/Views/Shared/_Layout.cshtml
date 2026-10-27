@@ -1,0 +1,127 @@
+@* What this file is for: the frame of every page: sidebar, top bar, bell panel and account menu, as in the prototype.
+   How it fits in: pages set ViewData["Nav"] (which menu item is lit), ["Heading"] and ["Sub"] (top bar text) and may fill the "Right" section (buttons in the top bar).
+   The frame is fluid: the content fills the browser window and the sidebar becomes a drawer on small screens.
+   Sign in pages have no signed in person, so only the page body is drawn for them. *@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    var shell = ViewData["Shell"] as ShellDto;
+    var nav = ViewData["Nav"] as string;
+    var token = Antiforgery.GetAndStoreTokens(Context).RequestToken;
+    string On(string name) => nav == name ? " on" : "";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="csrf" content="@token">
+<title>@(ViewData["Title"] ?? "SensorGrid") — SensorGrid</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="~/css/site.css" asp-append-version="true">
+</head>
+<body>
+@if (shell is not null)
+{
+<div class="app">
+    <aside class="side" id="side">
+        <div class="glow" style="width:420px;height:420px;left:-140px;top:-200px;background:rgba(16,121,90,.45);filter:blur(170px)"></div>
+        <div class="brandrow">
+            @Ui.Mark(38, 12)
+            <div style="font-size:17px;font-weight:700;color:#fff">SensorGrid</div>
+        </div>
+        <div class="sect">MONITORING</div>
+        <a class="navitem@(On("Dashboard"))" asp-controller="Dashboard" asp-action="Index"><u></u>Dashboard</a>
+        <a class="navitem@(On("Sites"))" asp-controller="Sites" asp-action="Index"><u></u>Sites</a>
+        <a class="navitem@(On("Sensors"))" asp-controller="Sensors" asp-action="Index"><u></u>Sensors</a>
+        <a class="navitem@(On("Readings log"))" asp-controller="Readings" asp-action="Index"><u></u>Readings log</a>
+        <div class="sect">MANAGEMENT</div>
+        <a class="navitem@(On("Alerts"))" asp-controller="Alerts" asp-action="Index"><u></u>Alerts @if (shell.OpenAlerts > 0){<span class="badge">@shell.OpenAlerts</span>}</a>
+        @if (shell.IsAdmin)
+        {
+            <a class="navitem@(On("Thresholds"))" asp-controller="Thresholds" asp-action="Index"><u></u>Thresholds</a>
+        }
+        <a class="navitem@(On("Reports"))" asp-controller="Reports" asp-action="Index"><u></u>Reports</a>
+        @if (shell.IsAdmin)
+        {
+            <a class="navitem@(On("User accounts"))" asp-controller="Users" asp-action="Index"><u></u>User accounts</a>
+        }
+        <div class="spacer"></div>
+        <div class="userblk">
+            <div class="av" style="width:38px;height:38px;font-size:13px">@shell.Initials</div>
+            <div><div style="font-size:13px;font-weight:600;color:#fff">@shell.Name</div>
+            <div style="font-size:11px;color:#8FA79C;margin-top:2px">@shell.RoleLabel</div></div>
+        </div>
+    </aside>
+    <div class="scrim" id="scrim"></div>
+
+    <div class="main">
+        <header class="topbar">
+            <button type="button" class="burger" id="burger" aria-label="Open menu">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C6E67" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+            </button>
+            <div class="titles"><div class="ttl">@ViewData["Heading"]</div><div class="sub">@ViewData["Sub"]</div></div>
+            <div class="actions">
+                @await RenderSectionAsync("Right", required: false)
+                <button type="button" id="bellBtn" aria-label="Notifications" style="position:relative;width:40px;height:40px;border-radius:11px;background:#fff;
+                    border:1px solid var(--line);display:flex;align-items:center;justify-content:center;cursor:pointer">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5C6E67" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 9.5a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15.5 6 9.5z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>
+                    <s id="bellDot" style="position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:#C0392F;
+                        display:@(shell.Unread > 0 ? "block" : "none");box-shadow:0 0 0 2px #fff"></s>
+                </button>
+                <button type="button" id="accBtn" style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 10px 4px 4px;border-radius:11px;background:none;border:0">
+                    <div style="width:32px;height:32px;border-radius:10px;background:var(--mint);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--deep)">@shell.Initials</div>
+                    <span style="font-size:13px;font-weight:600;color:var(--tx)">@shell.Name</span>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8A9691" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+            </div>
+
+            @* Account menu: under the avatar on every screen *@
+            <div class="menu" id="accMenu" style="width:220px">
+                <div style="padding:16px 18px;border-bottom:1px solid var(--line2)">
+                    <div style="font-size:13px;font-weight:700;color:var(--tx)">@shell.Name</div>
+                    <div style="font-size:11.5px;color:var(--tx3);margin-top:2px">@shell.Email</div>
+                </div>
+                <div style="padding:10px 8px">
+                    <a class="row2" asp-controller="Profile" asp-action="Index">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5C6E67" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1-3.5 3.8-5.5 7-5.5s6 2 7 5.5"/></svg>
+                        <span style="color:var(--tx)">Profile</span>
+                    </a>
+                    <form method="post" asp-controller="Account" asp-action="Logout">
+                        <button type="submit" class="row2">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C0392F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3"/><path d="m10 16 4-4-4-4"/><path d="M14 12H4.5"/></svg>
+                            <span style="color:#C0392F">Sign out</span>
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            @* Bell panel: filled by site.js from /Notifications/List *@
+            <div class="menu" id="bellMenu" style="width:380px">
+                <div style="display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line2)">
+                    <div style="font-size:13px;font-weight:700">Notifications</div>
+                    <button type="button" id="bellReadAll" class="linkbtn" style="margin-left:auto">Mark all as read</button>
+                </div>
+                <div id="bellList" style="max-height:380px;overflow:auto"></div>
+                <a href="@Url.Action("Index", "Alerts")" style="display:block;padding:13px 18px;font-size:12px;font-weight:600;color:var(--brand)">View all alerts</a>
+            </div>
+        </header>
+
+        <main class="content">
+            @if (TempData["Flash"] is string ok) { <div class="flash ok" id="flash">@ok</div> }
+            @if (TempData["FlashBad"] is string bad) { <div class="flash bad" id="flash">@bad</div> }
+            @RenderBody()
+        </main>
+    </div>
+</div>
+}
+else
+{
+    @RenderBody()
+}
+<script src="~/js/site.js" asp-append-version="true"></script>
+@await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
