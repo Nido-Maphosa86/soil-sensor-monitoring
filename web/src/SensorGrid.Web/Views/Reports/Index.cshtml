@@ -1,0 +1,116 @@
+@* W10 Reports: nutrient chart, share of readings in range, monthly summary, generated reports and the Generate report dialog. *@
+@model ReportsPageDto
+@{
+    ViewData["Title"] = "Reports";
+    ViewData["Nav"] = "Reports";
+    ViewData["Heading"] = "Reports";
+    ViewData["Sub"] = Model.Subtitle;
+    var heads = new[] { "Province", "Readings", "Moisture avg %", "Temp avg °C", "pH avg", "Breaches", "Longest gap", "Uptime" };
+    var colours = new[] { "#2F80C2", "#DE9A2E", "#6C55C4" };
+    const double maxV = 160, plotH = 170, baseY = 200;
+}
+@section Right {
+  <form method="get" style="display:contents">
+    <div class="selectbox"><span data-select-label>@Model.PeriodLabel</span>&nbsp;&nbsp;▾
+      <select name="period" data-autosubmit aria-label="Month">@foreach (var (v, l) in Model.Periods){<option value="@v" selected="@(v == Model.Period)">@l</option>}</select></div>
+  </form>
+  <button type="button" class="btn dark" data-open="genModal">Generate report</button>
+}
+<div class="grid g21">
+<div class="card chart">
+  <div class="cardhead" style="margin-bottom:8px">
+    <div><div class="h3">Nutrient levels by province</div><div class="cap" style="margin-top:4px">Monthly average in mg/kg</div></div>
+    <div class="legend push" style="font-weight:600;gap:6px 18px">
+      @foreach (var (n, c) in new[] { ("Nitrogen", "#2F80C2"), ("Phosphorus", "#DE9A2E"), ("Potassium", "#6C55C4") })
+      {
+        <span style="display:flex;align-items:center;gap:6px"><s style="width:10px;height:10px;border-radius:3px;background:@c;display:block"></s>@n</span>
+      }
+    </div>
+  </div>
+  <svg viewBox="0 0 736 236" role="img" aria-label="Nutrient levels by province">
+    <line x1="60" y1="@baseY" x2="720" y2="@baseY" stroke="#E4EBE7"/>
+    @foreach (var v in new[] { 0, 40, 80, 120, 160 })
+    {
+      var y = baseY - Math.Round(v / maxV * plotH);
+      <line x1="60" y1="@Ui.Px(y)" x2="720" y2="@Ui.Px(y)" stroke="#EEF3F0"/>
+      @Ui.SvgText(30, y + 4, 10, 500, "#A9B8B1", v.ToString())
+    }
+    @for (var gi = 0; gi < Model.Nutrients.Count; gi++)
+    {
+      var g = Model.Nutrients[gi];
+      var values = new[] { g.Nitrogen, g.Phosphorus, g.Potassium };
+      for (var bi = 0; bi < 3; bi++)
+      {
+        var h = Math.Round(values[bi] / maxV * plotH);
+        var x = 110 + gi * 200 + bi * 46;
+        <rect x="@x" y="@Ui.Px(baseY - h)" width="38" height="@Ui.Px(h)" rx="6" fill="@colours[bi]"/>
+        @Ui.SvgText(x + 8, baseY - h - 8, 11, 600, "#5C6E67", values[bi].ToString())
+      }
+      @Ui.SvgText(110 + gi * 200, 222, 11, 500, "#8A9691", g.Province)
+    }
+  </svg>
+</div>
+
+<div class="card">
+  <div class="h3">Readings in range</div>
+  <div class="cap" style="margin-top:5px">Share of readings inside every target band</div>
+  <div style="margin-top:20px">
+    @for (var i = 0; i < Model.InRange.Count; i++)
+    {
+      var r = Model.InRange[i];
+      var colour = r.IsTotal ? "#0D2620" : Ui.Colour(r.Tone);
+      <div style="margin-bottom:@(i == Model.InRange.Count - 2 ? 24 : 16)px;@(r.IsTotal ? "border-top:1px solid var(--line2);padding-top:18px" : "")">
+        <div style="display:flex;align-items:baseline">
+          <span style="font-size:13px;font-weight:@(r.IsTotal ? 700 : 500)">@r.Name</span>
+          <span style="margin-left:auto;font-size:14px;font-weight:700;color:@colour">@r.Percent%</span></div>
+        <div style="height:7px;border-radius:4px;background:#E7EDE9;margin-top:8px;position:relative">
+          <div style="position:absolute;left:0;top:0;width:@r.Percent%;height:7px;border-radius:4px;background:@colour"></div></div></div>
+    }
+  </div>
+</div>
+</div>
+
+<div class="card">
+  <div class="h3" style="margin-bottom:16px">Monthly summary</div>
+  <div class="tablewrap">
+    <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
+    <tbody>
+    @foreach (var r in Model.Summary)
+    {
+      <tr><td style="font-weight:600;padding-top:16px;padding-bottom:16px">@r.Province</td><td class="num">@r.Readings</td><td class="num">@r.Moisture</td><td class="num">@r.Temperature</td>
+        <td class="num">@r.Ph</td><td class="num">@r.Breaches</td><td class="num">@r.LongestGap</td><td class="num">@r.Uptime</td></tr>
+    }
+    </tbody></table>
+  </div>
+</div>
+
+<div class="card">
+  <div class="h3" style="margin-bottom:8px">Generated reports</div>
+  @foreach (var g in Model.Generated)
+  {
+    <div class="togrow" style="gap:14px">
+      <div class="ico" style="background:#E3F1EB"><s style="width:13px;height:13px;border-radius:3px;background:var(--brand)"></s></div>
+      <div style="min-width:0"><div style="font-size:13px;font-weight:600">@g.Name</div>
+      <div class="cap" style="margin-top:3px">@g.Meta · @g.By</div></div>
+      <a class="btn ghost sm" style="margin-left:auto" asp-action="Download" asp-route-id="@g.ReportId">Download</a></div>
+  }
+  @if (Model.Generated.Count == 0){<div class="cap" style="padding:14px 0">No reports yet. Use "Generate report" to make one.</div>}
+</div>
+
+<div class="modal" id="genModal">
+  <div class="backdrop" data-close></div>
+  <form class="box" method="post" asp-action="Generate">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:700">Generate report</div>
+      <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="cap" style="margin-top:4px">Only data from the provinces you can open is included.</div>
+    <div style="margin-top:20px"><label class="lab" for="kind">REPORT</label>
+      <select id="kind" name="kind"><option value="NutrientSummary">Monthly nutrient summary</option><option value="RawReadings">Raw readings export (CSV only)</option><option value="BreachLog">Threshold breach log</option></select></div>
+    <div style="margin-top:16px"><label class="lab" for="format">FORMAT</label>
+      <select id="format" name="format"><option value="Pdf">PDF</option><option value="Csv">CSV</option></select></div>
+    <div style="margin-top:16px"><label class="lab" for="period">MONTH</label>
+      <select id="period" name="period">@foreach (var (v, l) in Model.Periods){<option value="@v" selected="@(v == Model.Period)">@l</option>}</select></div>
+    <hr />
+    <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn">Generate</button></div>
+  </form>
+</div>

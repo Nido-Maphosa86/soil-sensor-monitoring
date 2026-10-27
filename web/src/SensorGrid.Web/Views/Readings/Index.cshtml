@@ -1,0 +1,67 @@
+@* W7 Readings log: filters (dates, province, sensor), 14 rows per page, Export CSV of the whole filtered set. *@
+@model ReadingsPageDto
+@{
+    ViewData["Title"] = "Readings log";
+    ViewData["Nav"] = "Readings log";
+    ViewData["Heading"] = "Readings log";
+    ViewData["Sub"] = "Every reading, newest first, exactly as stored";
+    var f = Model.Filter;
+    var heads = new[] { "Timestamp", "Province", "Sensor", "Moisture %", "Temp °C", "pH", "EC µS/cm", "N mg/kg", "P mg/kg", "K mg/kg" };
+    string Local(DateTime? d) => d?.ToString("yyyy-MM-ddTHH:mm") ?? "";
+    string Shown(DateTime? d) => d?.ToString("yyyy-MM-dd HH:mm") ?? "Any";
+    var allLabel = Model.Provinces.Count == 3 ? "All three provinces" : "All provinces";
+    var provinceName = Model.Provinces.FirstOrDefault(p => p.SiteId == f.SiteId).Name ?? allLabel;
+
+    // page numbers to show: first, last and the ones around the current page, with gaps marked
+    var pages = new SortedSet<int> { 1, Model.PageCount, Model.Page - 1, Model.Page, Model.Page + 1 };
+    pages.RemoveWhere(p => p < 1 || p > Model.PageCount);
+}
+@section Right {
+  <a class="btn" asp-action="Export" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId">Export CSV</a>
+}
+<form method="get" asp-action="Index">
+<div class="card row" style="gap:14px;align-items:flex-end">
+  <div><div class="eyebrow">FROM</div><div class="selectbox" style="margin-top:6px;width:180px"><span data-select-label>@Shown(f.From)</span>&nbsp;&nbsp;▾<input type="datetime-local" name="from" value="@Local(f.From)" /></div></div>
+  <div><div class="eyebrow">TO</div><div class="selectbox" style="margin-top:6px;width:180px"><span data-select-label>@Shown(f.To)</span>&nbsp;&nbsp;▾<input type="datetime-local" name="to" value="@Local(f.To)" /></div></div>
+  <div><div class="eyebrow">SITE</div><div class="selectbox" style="margin-top:6px;width:190px"><span data-select-label>@provinceName</span>&nbsp;&nbsp;▾
+    <select name="site"><option value="">@allLabel</option>
+    @foreach (var (id, name) in Model.Provinces){<option value="@id" selected="@(id == f.SiteId)">@name</option>}</select></div></div>
+  <div><div class="eyebrow">SENSOR</div><div class="selectbox" style="margin-top:6px;width:160px"><span data-select-label>@(string.IsNullOrEmpty(f.SensorId) ? "All sensors" : f.SensorId)</span>&nbsp;&nbsp;▾
+    <select name="sensor"><option value="">All sensors</option>
+    @foreach (var s in Model.SensorIds){<option value="@s" selected="@(s == f.SensorId)">@s</option>}</select></div></div>
+  <div class="row" style="margin-left:auto;gap:10px">
+    <a class="btn ghost" asp-action="Index">Reset</a><button class="btn dark" type="submit">Apply filters</button></div>
+</div>
+</form>
+
+<div class="card">
+  <div class="cardhead">
+    <div class="h3">@Model.Title</div>
+    <div class="cap">@Model.Caption</div></div>
+  <div class="tablewrap">
+    <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
+    <tbody>
+    @foreach (var r in Model.Rows)
+    {
+      <tr><td class="num" style="color:var(--tx2)">@r.Timestamp</td><td>@r.Province</td><td style="font-weight:600">@r.Sensor</td>
+        @foreach (var v in r.Values){<td class="num">@v</td>}</tr>
+    }
+    </tbody></table>
+  </div>
+  @if (Model.Rows.Count == 0){<div class="cap" style="padding:30px 0">No readings match these filters.</div>}
+  <div class="pager">
+    <div class="cap">Showing @Model.FromIndex – @Model.ToIndex of @Model.Total.ToString("N0") readings</div>
+    <div class="cap">Empty cells mean no reading was received, which is different from a reading of zero.</div>
+    <div class="btns">
+      <a class="btn ghost sm" asp-action="Index" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId" asp-route-page="@Math.Max(1, Model.Page - 1)">Previous</a>
+      @{ var prev = 0; }
+      @foreach (var p in pages)
+      {
+        if (p - prev > 1){<span class="cap" style="align-self:center">…</span>}
+        prev = p;
+        <a class="btn @(p == Model.Page ? "dark" : "ghost") sm" asp-action="Index" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId" asp-route-page="@p">@p</a>
+      }
+      <a class="btn ghost sm" asp-action="Index" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId" asp-route-page="@Math.Min(Model.PageCount, Model.Page + 1)">Next</a>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,71 @@
+@* W6 Register sensor (administrators only). Shows the validation state of the prototype: red field and the slave id warning with a one click fix. *@
+@model RegisterPageModel
+@{
+    ViewData["Title"] = "Register sensor";
+    ViewData["Nav"] = "Sensors";
+    ViewData["Heading"] = "Register sensor";
+    var f = Model.Form;
+    var errors = Model.Result?.Errors ?? new Dictionary<string, string>();
+    var conflict = Model.Result?.Conflict;
+    var sites = Model.Provinces;
+    ViewData["Sub"] = sites.Any(s => s.SiteId == f.SiteId) ? "Adding a unit to " + sites.First(s => s.SiteId == f.SiteId).Name : "Adding a unit";
+    string Err(string key) => errors.ContainsKey(key) ? " err" : "";
+}
+@section Right {
+  <a class="btn ghost" asp-action="Index">Cancel</a>
+  <button class="btn" type="submit" form="regForm">Save sensor</button>
+}
+<div class="cap">Sensors &nbsp;›&nbsp; Register sensor</div>
+<div class="grid g21" style="align-items:start">
+<form id="regForm" method="post" asp-action="Register">
+<div class="card" style="padding:28px 30px">
+  <div class="h3">Sensor details</div>
+  <div class="cap" style="margin-top:5px;margin-bottom:24px">The sensor code must match the identifier the device reports.</div>
+  <div class="fgrid">
+    <div class="field@(Err("SensorId"))"><label for="SensorId">SENSOR CODE</label>
+      <div class="inp"><input id="SensorId" name="SensorId" value="@f.SensorId" maxlength="5" required /></div>
+      @if (errors.TryGetValue("SensorId", out var e1)){<div class="hint">@e1</div>}else{<div class="hint">Two letter province prefix, then a two digit number</div>}</div>
+    <div class="field@(Err("SiteId"))"><label for="SiteId">SITE</label>
+      <div class="inp"><select id="SiteId" name="SiteId" onchange="location='@Url.Action("Register")?site='+this.value">
+        @foreach (var (id, name) in sites){<option value="@id" selected="@(id == f.SiteId)">@name</option>}</select></div></div>
+    <div class="field@(Err("InstalledDate"))"><label for="InstalledDate">INSTALLATION DATE</label>
+      <div class="inp"><input id="InstalledDate" name="InstalledDate" type="date" value="@f.InstalledDate?.ToString("yyyy-MM-dd")" required /></div>
+      @if (errors.TryGetValue("InstalledDate", out var e2)){<div class="hint">@e2</div>}</div>
+    <div class="field@(Err("DepthCm"))"><label for="DepthCm">DEPTH BELOW SURFACE</label>
+      <div class="inp"><input id="DepthCm" name="DepthCm" type="number" min="1" max="200" value="@f.DepthCm" required /></div>
+      @if (errors.TryGetValue("DepthCm", out var e3)){<div class="hint">@e3</div>}else{<div class="hint">Centimetres. Keep consistent across a site.</div>}</div>
+    <div class="field@(Err("ModbusSlaveId"))"><label for="ModbusSlaveId">MODBUS SLAVE ID</label>
+      <div class="inp"><input id="ModbusSlaveId" name="ModbusSlaveId" type="number" min="1" max="247" value="@f.ModbusSlaveId" required /></div>
+      @if (errors.TryGetValue("ModbusSlaveId", out var e4)){<div class="hint">@e4</div>}else{<div class="hint">Must be unique on the RS485 bus at this site</div>}</div>
+    <div class="field@(Err("Firmware"))"><label for="Firmware">FIRMWARE VERSION</label>
+      <div class="inp"><select id="Firmware" name="Firmware">
+        @foreach (var v in SensorService.FirmwareVersions){<option value="@v" selected="@(v == f.Firmware)">@v</option>}</select></div></div>
+  </div>
+  <div style="height:1px;background:var(--line2);margin-top:26px"></div>
+  <div style="margin-top:22px">
+    <label class="checkrow"><input type="checkbox" name="IncludeInAverage" value="true" checked="@f.IncludeInAverage" /> Include this sensor in the site average immediately</label></div>
+</div>
+</form>
+
+<div class="stack">
+  <div class="card" style="padding:24px 26px">
+    <div class="h3">Before you save</div>
+    <div style="margin-top:16px">
+      @{ var tips = new[] { "The sensor code cannot be changed afterwards.", "Thresholds are inherited from the province, not set per sensor.", "Readings only appear once the device begins reporting.", "Retiring a sensor keeps its historical readings." }; }
+      @for (var i = 0; i < tips.Length; i++)
+      {
+        <div style="display:flex;gap:9px;padding:9px 0;@(i < 3 ? "border-bottom:1px solid var(--line2)" : "")">
+          <s style="width:6px;height:6px;border-radius:50%;background:var(--brand);display:block;margin-top:6px;flex:0 0 auto"></s>
+          <span style="font-size:12px;color:var(--tx2);line-height:1.5">@tips[i]</span></div>
+      }
+    </div>
+  </div>
+  @if (conflict is not null)
+  {
+    <div class="card" style="padding:24px 26px;border-left:3px solid #B87A15">
+      <div style="font-size:13px;font-weight:700;color:#B87A15">Slave ID already in use</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.55;margin-top:9px">Sensor @conflict.SensorId in this province is already using Modbus slave ID @conflict.SlaveId. Two devices sharing an ID on the same bus will collide and neither will report.</div>
+      <button type="button" class="btn ghost sm" style="margin-top:14px" data-set-value="ModbusSlaveId" data-value="@conflict.NextFree">Use the next free ID (@conflict.NextFree)</button></div>
+  }
+</div>
+</div>
