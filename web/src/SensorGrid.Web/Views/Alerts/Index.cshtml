@@ -1,0 +1,106 @@
+@* W9 Alerts: counters, six filter chips, table with Acknowledge / Resolve (note required) and View note. *@
+@model AlertsViewModel
+@{
+    var page = Model.Page;
+    ViewData["Title"] = "Alerts";
+    ViewData["Nav"] = "Alerts";
+    ViewData["Heading"] = "Alerts";
+    ViewData["Sub"] = page.Subtitle;
+    var heads = new[] { "Raised", "Severity", "Province", "Sensor", "Parameter", "Reading", "Threshold", "Owner", "Status", "Actions" };
+    var kpis = new[]
+    {
+        ("Open", page.Open.ToString(), "Awaiting action", Tone.Bad),
+        ("Acknowledged", page.Acknowledged.ToString(), "Being worked on", Tone.Warn),
+        ("Resolved this month", page.ResolvedThisMonth.ToString(), page.AverageClose, Tone.Ok)
+    };
+    Tone StatusTone(AlertStatus s) => s == AlertStatus.Open ? Tone.Bad : s == AlertStatus.Acknowledged ? Tone.Warn : Tone.Ok;
+}
+@section Right {
+  <form method="get" style="display:contents">
+    <input type="hidden" name="chip" value="@Model.Chip" />
+    <div class="searchbox"><i></i><input name="q" value="@Model.Query" placeholder="Search alerts" maxlength="60" /></div>
+    <div class="selectbox"><span data-select-label>@(page.Provinces.FirstOrDefault(p => p.SiteId == Model.Site).Name ?? "All provinces")</span>&nbsp;&nbsp;▾
+      <select name="site" data-autosubmit aria-label="Province"><option value="">All provinces</option>
+      @foreach (var (id, name) in page.Provinces){<option value="@id" selected="@(id == Model.Site)">@name</option>}</select></div>
+  </form>
+  <a class="btn ghost" asp-action="Export">Export</a>
+}
+<div class="grid g3">
+@foreach (var (l, v, s, tone) in kpis)
+{
+  <div class="card kpi wide">
+    <div class="ico" style="width:38px;height:38px;border-radius:12px;background:@Ui.Bg(tone)"><s style="width:14px;height:14px;background:@Ui.Colour(tone)"></s></div>
+    <div><div class="cap">@l</div><div class="kv">@v</div></div>
+    <div class="ks">@s</div></div>
+}
+</div>
+<div class="chips">
+  @foreach (var chip in new[] { "All", "Critical", "Warning", "Offline", "Acknowledged", "Resolved" })
+  {
+    <a class="chip@(chip == Model.Chip ? " on" : "")" asp-action="Index" asp-route-chip="@chip" asp-route-q="@Model.Query" asp-route-site="@Model.Site">@chip</a>
+  }
+</div>
+<div class="card">
+  <div class="tablewrap">
+  <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
+  <tbody>
+  @foreach (var r in page.Rows)
+  {
+    <tr><td style="color:var(--tx3)">@r.Raised</td>
+      <td>@Ui.Status(r.KindLabel, Ui.Colour(r.Kind))</td><td style="font-weight:600">@r.Province</td>
+      <td class="num">@r.Sensor</td>
+      <td class="num" style="@(r.Parameter == "—" ? "color:var(--tx4)" : "")">@r.Parameter</td>
+      <td class="num" style="@(r.Reading == "—" ? "color:var(--tx4)" : "")">@r.Reading</td>
+      <td class="num" style="@(r.Threshold == "—" ? "color:var(--tx4)" : "")">@r.Threshold</td>
+      <td>@r.Owner</td><td>@Ui.Status(r.Status.ToString(), StatusTone(r.Status))</td>
+      <td>
+        @if (r.Status == AlertStatus.Open)
+        {
+          <div style="display:flex;gap:6px">
+            <button type="button" class="btn ghost" style="height:30px;padding:0 12px;font-size:12px" data-note-action="Acknowledge" data-id="@r.AlertId" data-sensor="@r.Sensor">Acknowledge</button>
+            <button type="button" class="btn" style="height:30px;padding:0 12px;font-size:12px" data-note-action="Resolve" data-id="@r.AlertId" data-sensor="@r.Sensor">Resolve</button></div>
+        }
+        else if (r.Status == AlertStatus.Acknowledged)
+        {
+          <button type="button" class="btn" style="height:30px;padding:0 12px;font-size:12px" data-note-action="Resolve" data-id="@r.AlertId" data-sensor="@r.Sensor">Resolve</button>
+        }
+        else
+        {
+          <button type="button" class="linkbtn" data-view-note="@r.AlertId">View note</button>
+        }
+      </td></tr>
+  }
+  </tbody></table>
+  </div>
+  @if (page.Rows.Count == 0){<div class="cap" style="padding:30px 0">No alerts match these filters.</div>}
+</div>
+
+@* Note dialog: used for both Acknowledge and Resolve. The server refuses an empty note too. *@
+<div class="modal" id="noteModal">
+  <div class="backdrop" data-close></div>
+  <form class="box" method="post" id="noteForm" asp-action="Acknowledge">
+    <input type="hidden" name="id" id="noteId" />
+    <input type="hidden" name="chip" value="@Model.Chip" />
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:700" id="noteTitle">Acknowledge alert</div>
+      <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="cap" style="margin-top:4px" id="noteSub"></div>
+    <div style="margin-top:20px"><label class="lab" for="noteText">NOTE (REQUIRED)</label>
+      <textarea id="noteText" name="note" required maxlength="500" placeholder="What did you find, or what will you do?"></textarea></div>
+    <hr />
+    <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn" id="noteSubmit">Acknowledge</button></div>
+  </form>
+</div>
+
+<div class="modal" id="viewNoteModal">
+  <div class="backdrop" data-close></div>
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:700" id="vnTitle">Note</div>
+      <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="cap" style="margin-top:4px" id="vnSub"></div>
+    <div style="margin-top:18px;font-size:14px;line-height:1.6;white-space:pre-wrap" id="vnText"></div>
+    <hr /><div class="foot"><button type="button" class="btn ghost" data-close>Close</button></div>
+  </div>
+</div>
+@section Scripts { <script>SensorGrid.initAlerts();</script> }

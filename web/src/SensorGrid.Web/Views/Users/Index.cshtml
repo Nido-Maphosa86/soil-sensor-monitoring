@@ -1,0 +1,89 @@
+@* W11 User accounts (administrators only): role cards, all accounts, and the Invite user / Edit account dialogs. *@
+@model UsersPageDto
+@{
+    ViewData["Title"] = "User accounts";
+    ViewData["Nav"] = "User accounts";
+    ViewData["Heading"] = "User accounts";
+    ViewData["Sub"] = Model.Subtitle;
+    var heads = new[] { "Name", "Email", "Role", "Assigned provinces", "Last active", "Status", "" };
+}
+@section Right {
+  <form method="get" class="searchbox"><i></i><input name="q" value="@Context.Request.Query["q"]" placeholder="Search by name or email" maxlength="60" /></form>
+  <button type="button" class="btn" data-open="createModal">Invite user</button>
+}
+<div class="grid g2">
+@foreach (var role in Model.Roles)
+{
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <div class="ico" style="background:@Ui.Bg(role.Tone)"><s style="background:@Ui.Colour(role.Tone)"></s></div>
+      <div class="h3">@role.Role</div>
+      <div class="pill" style="background:@Ui.Bg(role.Tone);color:@Ui.Colour(role.Tone)">@role.Count</div></div>
+    <div class="bullets" style="margin-top:15px">
+      @foreach (var p in role.Permissions)
+      {
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <s style="width:6px;height:6px;border-radius:50%;background:@Ui.Colour(role.Tone);display:block;margin-top:6px;flex:0 0 auto"></s>
+          <span style="font-size:12px;color:var(--tx2);line-height:1.45">@p</span></div>
+      }
+    </div></div>
+}
+</div>
+<div class="card">
+  <div class="cardhead">
+    <div class="h3">All accounts</div>
+    <div class="cap">Province assignment controls which readings each account can open</div></div>
+  <div class="tablewrap">
+    <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
+    <tbody>
+    @foreach (var r in Model.Rows)
+    {
+      <tr><td style="font-weight:600;padding-top:18px;padding-bottom:18px">@r.Name</td><td style="color:var(--tx2)">@r.Email</td><td>@r.Role</td>
+        <td style="color:var(--tx2)">@r.Provinces</td><td class="num" style="color:var(--tx3)">@r.LastActive</td>
+        <td>@Ui.Status(r.StatusLabel, r.Tone)</td>
+        <td><button type="button" class="linkbtn" data-edit-user="@r.UserId" data-name="@r.Name" data-email="@r.Email"
+              data-role="@(r.Role == "Administrator" ? "Administrator" : "StandardUser")" data-status="@r.StatusLabel"
+              data-sites="@r.SiteIds">Edit</button>
+          @if (r.StatusLabel == "Invited")
+          {
+            <form method="post" asp-action="Resend" asp-route-id="@r.UserId" style="display:inline"><button type="submit" class="linkbtn" style="margin-left:12px">Resend invitation</button></form>
+          }</td></tr>
+    }
+    </tbody></table>
+  </div>
+  @if (Model.Rows.Count == 0){<div class="cap" style="padding:20px 0">No accounts match.</div>}
+</div>
+
+@* The same form is used for Invite (create) and Edit; site.js fills it in. *@
+@foreach (var mode in new[] { "create", "edit" })
+{
+  <div class="modal" id="@(mode)Modal">
+    <div class="backdrop" data-close></div>
+    <form class="box" method="post" asp-action="@(mode == "create" ? "Create" : "Edit")">
+      @if (mode == "edit"){<input type="hidden" name="UserId" id="editUserId" />}
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:16px;font-weight:700">@(mode == "create" ? "Invite user" : "Edit account")</div>
+        <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="cap" style="margin-top:4px">@(mode == "create" ? "Firebase emails the person a link to set their own password. Field officers then sign in on the web console and the mobile app; administrators on the web console only." : "Change the role, provinces or status of this account.")</div>
+      <div style="margin-top:18px"><label class="lab" for="@(mode)Name">NAME</label><input type="text" id="@(mode)Name" name="Name" required maxlength="80" /></div>
+      <div style="margin-top:14px"><label class="lab" for="@(mode)Email">EMAIL ADDRESS</label><input type="email" id="@(mode)Email" name="Email" required maxlength="200" /></div>
+      <div style="margin-top:14px"><label class="lab" for="@(mode)Role">ROLE</label>
+        <select id="@(mode)Role" name="Role"><option value="StandardUser">Field officer</option><option value="Administrator">Administrator</option></select></div>
+      <div style="margin-top:14px"><label class="lab">ASSIGNED PROVINCES (FIELD OFFICERS)</label>
+        <div style="display:flex;gap:18px;flex-wrap:wrap">
+          @foreach (var (id, name) in Model.Provinces)
+          {
+            <label class="checkrow"><input type="checkbox" name="SiteIds" value="@id" data-site="@id" /> @name</label>
+          }
+          @if (Model.Provinces.Count == 0){<span class="cap">No sites yet. Add one on the Sites page first.</span>}</div></div>
+      @if (mode == "edit")
+      {
+        <div style="margin-top:14px"><label class="lab" for="editStatus">STATUS</label>
+          <select id="editStatus" name="Status"><option value="Active">Active</option><option value="Invited">Invited</option><option value="Deactivated">Deactivated</option></select></div>
+      }
+      <hr />
+      <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn">@(mode == "create" ? "Send invitation" : "Save changes")</button></div>
+    </form>
+  </div>
+}
+@section Scripts { <script>SensorGrid.initUsers();</script> }

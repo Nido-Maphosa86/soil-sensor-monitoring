@@ -1,0 +1,84 @@
+@* W12 Profile (opened from the account dropdown) and W12b Change password dialog. *@
+@model ProfileDto
+@{
+    ViewData["Title"] = "Profile";
+    ViewData["Nav"] = "";
+    ViewData["Heading"] = "Profile";
+    ViewData["Sub"] = "Your account on SensorGrid";
+    var notif = new[]
+    {
+        ("breach", "Threshold breaches", "A reading moves outside its band", Model.NotifyBreach),
+        ("offline", "Sensor offline", "A sensor has not reported for 2 hours", Model.NotifyOffline),
+        ("daily", "Daily summary at 07:00", "A morning digest of readings and open alerts", Model.NotifyDaily)
+    };
+}
+<div class="grid gprofile">
+<div class="stack">
+  <div class="card" style="padding:34px 24px 24px;text-align:center">
+    <div class="av" style="width:84px;height:84px;border-radius:26px;font-size:28px;margin:0 auto">@Model.Initials</div>
+    <div style="font-size:20px;font-weight:700;margin-top:20px">@Model.Name</div>
+    <div style="font-size:12.5px;color:var(--tx2);margin-top:6px;word-break:break-all">@Model.Email</div>
+    <div style="margin-top:14px"><span class="pill" style="background:#E3F1EB;color:#10795A">@Model.RoleLabel</span></div>
+    <div style="height:1px;background:var(--line2);margin:24px 0 18px"></div>
+    <div style="display:flex;font-size:12px;text-align:left"><span style="color:var(--tx3)">Last sign-in</span><span style="margin-left:auto;font-weight:600">@Model.LastSignIn</span></div>
+    <div style="display:flex;font-size:12px;text-align:left;margin-top:14px"><span style="color:var(--tx3)">Account created</span><span style="margin-left:auto;font-weight:600">@Model.Created</span></div>
+  </div>
+  <form method="post" asp-controller="Account" asp-action="Logout" class="card" style="padding:0">
+    <button type="submit" style="display:flex;align-items:center;gap:10px;width:100%;padding:24px;background:none;border:0;cursor:pointer;text-align:left">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C0392F" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4.5h3a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3"/><path d="m10 16 4-4-4-4"/><path d="M14 12H4.5"/></svg>
+      <span style="font-size:13px;font-weight:600;color:#C0392F">Sign out</span></button>
+  </form>
+</div>
+
+<div class="stack">
+  <div class="card">
+    <div class="h3">Assigned provinces</div>
+    <div class="cap" style="margin-top:4px">@(Model.IsAdmin ? "Administrators can open every province" : "You can open these provinces only")</div>
+    <div class="chips" style="margin-top:18px">
+      @foreach (var (n, c) in Model.Provinces)
+      {
+        <div class="chip" style="gap:8px;cursor:default"><i style="width:8px;height:8px;border-radius:50%;background:@c;display:block"></i>@n</div>
+      }
+    </div>
+  </div>
+
+  <form id="notifForm" method="post" asp-action="Notifications" class="card">
+    <div class="h3">Notifications</div>
+    <div class="cap" style="margin-top:4px;margin-bottom:8px">Choose what reaches the bell and your account</div>
+    @foreach (var (key, l, d, on) in notif)
+    {
+      <div class="togrow">
+        <div><div style="font-size:13px;font-weight:600">@l</div><div style="font-size:11.5px;color:var(--tx3);margin-top:3px">@d</div></div>
+        <input type="hidden" name="@key" id="n_@key" value="@(on ? "true" : "false")" />
+        <button type="button" class="toggle@(on ? " on" : "")" data-toggle="@key" role="switch" aria-checked="@(on ? "true" : "false")" aria-label="@l"><i></i></button>
+      </div>
+    }
+  </form>
+
+  <div class="card">
+    <div class="h3" style="margin-bottom:8px">Account</div>
+    <div class="togrow">
+      <div><div style="font-size:13px;font-weight:600">Email</div><div style="font-size:11.5px;color:var(--tx3);margin-top:3px">Used to sign in. Changed by an administrator.</div></div>
+      <div style="margin-left:auto;font-size:13px;color:var(--tx2);word-break:break-all;text-align:right">@Model.Email</div></div>
+    <div class="togrow">
+      <div><div style="font-size:13px;font-weight:600">Password</div><div style="font-size:11.5px;color:var(--tx3);margin-top:3px">@Model.PasswordChanged</div></div>
+      <button type="button" class="btn ghost sm" style="margin-left:auto" data-open="pwModal">Change password</button></div>
+  </div>
+</div>
+</div>
+
+<div class="modal" id="pwModal" data-open-on-load="@(TempData["OpenPasswordDialog"] is not null ? "1" : "0")">
+  <div class="backdrop" data-close></div>
+  <form class="box" method="post" asp-action="ChangePassword" autocomplete="off">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:16px;font-weight:700">Change password</div>
+      <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+    <div class="cap" style="margin-top:4px">Choose a new password for @Model.Name.</div>
+    <div style="margin-top:20px"><label class="lab" for="current">CURRENT PASSWORD</label><input type="password" id="current" name="current" required autocomplete="current-password" maxlength="100" /></div>
+    <div style="margin-top:16px"><label class="lab" for="next">NEW PASSWORD</label><input type="password" id="next" name="next" required minlength="8" autocomplete="new-password" maxlength="100" />
+      <div class="cap" style="margin-top:6px">At least 8 characters, with letters and numbers.</div></div>
+    <div style="margin-top:16px"><label class="lab" for="confirm">CONFIRM NEW PASSWORD</label><input type="password" id="confirm" name="confirm" required autocomplete="new-password" maxlength="100" /></div>
+    <hr />
+    <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn">Update password</button></div>
+  </form>
+</div>
