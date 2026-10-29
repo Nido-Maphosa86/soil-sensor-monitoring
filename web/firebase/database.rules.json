@@ -76,7 +76,7 @@
         "$alert_id": {
           "$action": {
             ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'Standard User' && root.child('users').child(auth.uid).child('account_status').val() === 'Active' && root.child('user_locations').child(auth.uid).child($loc).val() === true && !data.exists() && ($action === 'acknowledged' || $action === 'resolved') && root.child('alerts').child($loc).child($alert_id).exists()",
-            ".validate": "newData.hasChildren(['user_id', 'note', 'acted_at']) && newData.child('user_id').val() === auth.uid && newData.child('note').isString() && newData.child('note').val().matches(/S/) && newData.child('note').val().length <= 500 && newData.child('acted_at').isNumber()"
+            ".validate": "newData.hasChildren(['user_id', 'note', 'acted_at']) && newData.child('user_id').val() === auth.uid && newData.child('note').isString() && newData.child('note').val().matches(/\\S/) && newData.child('note').val().length <= 500 && newData.child('acted_at').isNumber()"
           }
         }
       }
