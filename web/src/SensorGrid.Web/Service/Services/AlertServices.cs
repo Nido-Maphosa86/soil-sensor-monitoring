@@ -154,7 +154,7 @@ public sealed class NotificationService : INotificationService
             if (a.AlertType == AlertType.Offline)
             {
                 title = $"{a.SensorId} is offline";
-                detail = "No reading for 2 hours";
+                detail = "No reading for 1 minute";
             }
             else
             {

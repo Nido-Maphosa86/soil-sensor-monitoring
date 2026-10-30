@@ -55,8 +55,8 @@ public enum MeasuredParameter
 /// <summary>The live state of a sensor, shown in the sensor tables.</summary>
 public enum SensorState
 {
-    Online,  // reported in the last 2 hours
-    Offline  // silent for 2 hours or more   // silent for 2 hours or more
+    Online,  // reported in the last minute
+    Offline  // silent for 1 minute or more   // silent for 2 hours or more
 }
 
 /// <summary>The kinds of report the system can build.</summary>

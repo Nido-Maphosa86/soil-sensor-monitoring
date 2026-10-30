@@ -29,15 +29,15 @@ public static class BreachRule
     public static bool CrossedMax(double value, Threshold band) => value > band.MaxValue;
 }
 
-/// <summary>Rule: a sensor that has been silent for 2 hours or more is Offline. The same for every province.</summary>
+/// <summary>Rule: a sensor that has been silent for 1 minute or more is Offline (the gateway sends a row about every 6 seconds). The same for every province.</summary>
 public static class OfflineRule
 {
-    public static readonly TimeSpan SilenceLimit = TimeSpan.FromHours(2); // how long a sensor may be silent
+    public static readonly TimeSpan SilenceLimit = TimeSpan.FromMinutes(1); // how long a sensor may be silent
 
     /// <summary>A sensor that never reported is treated as offline.</summary>
     public static bool IsOffline(DateTime? lastReadingUtc, DateTime nowUtc) =>
         lastReadingUtc is null                          // never reported at all
-        || nowUtc - lastReadingUtc.Value >= SilenceLimit; // or silent for 2 hours or more
+        || nowUtc - lastReadingUtc.Value >= SilenceLimit; // or silent for 1 minute or more
 }
 
 /// <summary>Rule: the probe sends a row of zeros when it is not reading the soil.</summary>
@@ -56,9 +56,9 @@ public static class SensorStateRule
 {
     public static SensorState Evaluate(Sensor sensor, SensorStatus? status, DateTime nowUtc)
     {
-        // retired, never reported, or silent for 2 hours: Offline
+        // retired, never reported, or silent for 1 minute: Offline
         if (!sensor.IsActive || status is null || OfflineRule.IsOffline(status.LastCommunication, nowUtc)) return SensorState.Offline;
-        // reported in the last 2 hours
+        // reported in the last minute
         return SensorState.Online;
     }
 }
