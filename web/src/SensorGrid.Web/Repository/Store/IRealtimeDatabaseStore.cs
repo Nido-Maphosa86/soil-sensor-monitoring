@@ -19,7 +19,7 @@ public interface IRealtimeDatabaseStore
 
     /// <summary>
     /// Children of a path ordered by key (REST: orderBy="$key"). startAt and endAt are inclusive; limitToLast keeps the last N.
-    /// Used for readings and sensor status, whose keys are yyyyMMddHHmm, so a period is a key range and the latest is the last key.
+    /// Used for the gateway's readings, whose keys are push IDs that start with their time, so a period is a key range.
     /// </summary>
     Task<IReadOnlyList<KeyValuePair<string, JsonNode?>>> QueryByKeyAsync(string path, string? startAt = null, string? endAt = null, int? limitToLast = null, CancellationToken ct = default);
 

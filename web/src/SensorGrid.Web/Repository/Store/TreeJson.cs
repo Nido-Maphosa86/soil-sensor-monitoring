@@ -1,4 +1,4 @@
-// What this file is for: small helpers that turn values into the exact shapes the tree uses (UTC milliseconds, yyyy-MM-dd dates, key text)
+// What this file is for: small helpers that turn values into the exact shapes the tree uses (UTC milliseconds, yyyy-MM-dd dates)
 // and read them back safely. Empty values are never stored.
 // How it fits in: Repository folder. Every repository uses these so the tree always looks the same.
 using System.Globalization;   // fixed date formats, whatever the computer's language is
@@ -23,12 +23,6 @@ public static class TreeJson
     public static DateTime ParseDate(string? s) =>
         DateTime.TryParseExact(s, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d) ? d : default;
 
-    /// <summary>The key of a reading or status: the capture time as yyyyMMddHHmm in UTC.</summary>
-    public static string TimeKey(DateTime utc) => utc.ToUniversalTime().ToString("yyyyMMddHHmm", CultureInfo.InvariantCulture);
-
-    /// <summary>A yyyyMMddHHmm key back to a UTC time.</summary>
-    public static DateTime ParseTimeKey(string key) =>
-        DateTime.TryParseExact(key, "yyyyMMddHHmm", CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var d) ? d : default;
 
     /// <summary>Adds a value to an object unless it is empty (null or blank text).</summary>
     public static void Put(JsonObject target, string name, object? value)
@@ -92,7 +86,7 @@ public static class TreeJson
         MeasuredParameter.Nitrogen => "nitrogen",
         MeasuredParameter.Phosphorus => "phosphorus",
         MeasuredParameter.Potassium => "potassium",
-        MeasuredParameter.Battery => "battery",
+        
         _ => throw new ArgumentOutOfRangeException(nameof(p))
     };
 
@@ -106,7 +100,7 @@ public static class TreeJson
         "nitrogen" => MeasuredParameter.Nitrogen,
         "phosphorus" => MeasuredParameter.Phosphorus,
         "potassium" => MeasuredParameter.Potassium,
-        "battery" => MeasuredParameter.Battery,
+        
         _ => null
     };
 

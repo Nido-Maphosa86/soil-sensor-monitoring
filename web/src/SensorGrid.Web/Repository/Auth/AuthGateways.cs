@@ -109,7 +109,9 @@ public sealed class FirebaseAuthGateway : IAuthGateway
 
     public async Task<string> CreateAccountAsync(string email, string displayName, CancellationToken ct = default)
     {
-        var randomPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)); // replaced by the person through the invitation email
+        // Replaced by the person through the invitation email. The ending makes sure it meets the password policy set in Firebase
+        // (upper case, lower case, a number and a symbol), because the random part alone does not always have them.
+        var randomPassword = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) + "Aa1!";
         var json = await AdminAsync($"projects/{_settings.ProjectId}/accounts",
             new JsonObject { ["email"] = email, ["displayName"] = displayName, ["password"] = randomPassword, ["emailVerified"] = false }, "create the account", ct);
         return json["localId"]!.GetValue<string>();

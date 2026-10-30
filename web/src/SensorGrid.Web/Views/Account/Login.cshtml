@@ -20,7 +20,7 @@
       <input asp-for="Email" type="email" autocomplete="username" required maxlength="200" autofocus /></div></div>
   <div class="field" style="margin-top:22px"><label for="Password">PASSWORD</label>
     <div class="inp" style="height:52px">
-      <input asp-for="Password" type="password" autocomplete="current-password" required maxlength="200" placeholder="••••••••••••" /></div></div>
+      <input asp-for="Password" type="password" autocomplete="current-password" required maxlength="200" placeholder="••••••••••••" />@await Html.PartialAsync("_passwordeye")</div></div>
   <div class="row" style="margin-top:22px;justify-content:space-between">
     <label class="checkrow"><input type="checkbox" asp-for="KeepSignedIn" value="true" /> Keep me signed in on this computer</label>
     <a asp-action="Forgot" style="font-size:13px;font-weight:600;color:var(--brand)">Forgot password?</a>

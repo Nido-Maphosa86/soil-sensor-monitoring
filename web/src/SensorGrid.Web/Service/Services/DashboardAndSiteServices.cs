@@ -270,9 +270,9 @@ public sealed class SiteService : ISiteService
             }
             else
             {
-                var p = ParameterCatalog.Get(a.Parameter ?? MeasuredParameter.Battery).Short;
-                var word = a.AlertType == AlertType.Battery ? "battery fell below 25%" : a.ThresholdIsMax ? "rose above the configured maximum" : "fell below the configured minimum";
-                var text = a.AlertType == AlertType.Battery ? $"{a.SensorId} {word}" : $"{p} {word} on {a.SensorId}";
+                var p = ParameterCatalog.Get(a.Parameter ?? MeasuredParameter.Moisture).Short; // a breach always has a parameter
+                var word = a.ThresholdIsMax ? "rose above the configured maximum" : "fell below the configured minimum";
+                var text = $"{p} {word} on {a.SensorId}";
                 events.Add((a.RaisedAt, new FeedItemDto(Display.DayLabel(a.RaisedAt, now), province, text, a.Severity == AlertSeverity.Critical ? Tone.Bad : Tone.Warn)));
                 if (a.Resolved is { } fixedAt) events.Add((fixedAt.ActedAt, new FeedItemDto(Display.DayLabel(fixedAt.ActedAt, now), province, $"{p} returned to range on {a.SensorId}", Tone.Ok)));
             }

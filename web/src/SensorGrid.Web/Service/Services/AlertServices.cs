@@ -114,10 +114,9 @@ public sealed class AlertService : IAlertService
         string parameter = "—", reading = "—", threshold = "—";
         if (a.AlertType != AlertType.Offline && a.Parameter is { } p)
         {
-            var unit = p == MeasuredParameter.Battery ? "%" : "";
             parameter = ParameterCatalog.Get(p).Short;
-            reading = a.ReadingValue is { } rv ? Display.Value(p, rv) + unit : "—";
-            threshold = a.ThresholdValue is { } tv ? (a.ThresholdIsMax ? "max " : "min ") + Display.Value(p, tv) + unit : "—";
+            reading = a.ReadingValue is { } rv ? Display.Value(p, rv) : "—";
+            threshold = a.ThresholdValue is { } tv ? (a.ThresholdIsMax ? "max " : "min ") + Display.Value(p, tv) : "—";
         }
         // The owner is the person who last acted on the alert; an open alert has none yet.
         var actor = (a.Resolved ?? a.Acknowledged)?.UserId;
@@ -159,8 +158,8 @@ public sealed class NotificationService : INotificationService
             }
             else
             {
-                var p = a.Parameter ?? MeasuredParameter.Battery;
-                title = a.AlertType == AlertType.Battery ? $"Battery low on {a.SensorId}" : $"{ParameterCatalog.Get(p).Short} {(a.ThresholdIsMax ? "above" : "below")} limit on {a.SensorId}";
+                var p = a.Parameter ?? MeasuredParameter.Moisture; // a breach always has a parameter
+                title = $"{ParameterCatalog.Get(p).Short} {(a.ThresholdIsMax ? "above" : "below")} limit on {a.SensorId}";
                 detail = $"{Display.Value(p, a.ReadingValue ?? 0)} against {(a.ThresholdIsMax ? "max" : "min")} {Display.Value(p, a.ThresholdValue ?? 0)}";
             }
             result.Add(new BellItemDto(n.AlertId, n.AlertId, title, detail, Display.DayLabel(n.CreatedAt, now), n.IsRead, kind));
@@ -231,7 +230,8 @@ public sealed class AlertEvaluator : IAlertEvaluator
                     continue; // an offline sensor has no fresh reading to judge
                 }
 
-                if (latest[sensor.SensorId] is { } reading && bands.TryGetValue(sensor.SiteId, out var siteBands))
+                // a row of zeros means the probe is not reading the soil, not a breach
+                if (latest[sensor.SensorId] is { } reading && !ReadingRule.IsEmpty(reading) && bands.TryGetValue(sensor.SiteId, out var siteBands))
                 {
                     foreach (var (parameter, band, above) in Analytics.Breaches(reading, siteBands))
                     {
@@ -247,15 +247,6 @@ public sealed class AlertEvaluator : IAlertEvaluator
                     }
                 }
 
-                if (status is not null && BatteryRule.IsLow(status.BatteryPercent) && !active.Any(a => a.SensorId == sensor.SensorId && a.AlertType == AlertType.Battery))
-                {
-                    await RaiseAsync(new Alert
-                    {
-                        SiteId = sensor.SiteId, SensorId = sensor.SensorId, AlertType = AlertType.Battery, Parameter = MeasuredParameter.Battery,
-                        Severity = AlertSeverity.Warning, ReadingValue = status.BatteryPercent, ThresholdValue = BatteryRule.AlertBelowPercent
-                    }, users, active, now);
-                    raised++;
-                }
             }
             return raised;
         }
@@ -276,7 +267,7 @@ public sealed class AlertEvaluator : IAlertEvaluator
         var notifications = new List<Notification>();
         foreach (var user in users.Where(u => u.Status == AccountStatus.Active && (u.Role == UserRole.Administrator || assigned.Contains(u.UserId))))
         {
-            var wants = alert.AlertType == AlertType.Offline ? user.NotifyOffline : user.NotifyBreach; // low battery follows the breach switch
+            var wants = alert.AlertType == AlertType.Offline ? user.NotifyOffline : user.NotifyBreach;
             if (wants) notifications.Add(new Notification { UserId = user.UserId, AlertId = alert.AlertId, SiteId = alert.SiteId, CreatedAt = now, IsRead = false });
         }
         await _alerts.AddAsync(alert, notifications);

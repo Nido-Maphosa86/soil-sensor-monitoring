@@ -1,4 +1,4 @@
-// What this file is for: the business rules as small, testable code: breach, offline, low battery, threshold, alert life cycle, sensor code format.
+// What this file is for: the business rules as small, testable code: breach, offline, empty reading, threshold, alert life cycle, sensor code format.
 // How it fits in: Domain folder. Services call these instead of repeating the logic. The same rules run in the Cloud Function later.
 using System.Text.RegularExpressions; // for checking the sensor code format (FS-06)
 
@@ -40,29 +40,25 @@ public static class OfflineRule
         || nowUtc - lastReadingUtc.Value >= SilenceLimit; // or silent for 2 hours or more
 }
 
-/// <summary>Rule: a battery below 25 percent raises a Warning.</summary>
-public static class BatteryRule
+/// <summary>Rule: the probe sends a row of zeros when it is not reading the soil.</summary>
+public static class ReadingRule
 {
-    public const int AlertBelowPercent = 25; // the alert limit
-
-    public static bool IsLow(int batteryPercent) => batteryPercent < AlertBelowPercent;
+    /// <summary>
+    /// True when moisture, conductivity, N, P and K are all 0. Such a reading is still shown, but it never raises a breach alert,
+    /// otherwise every row of zeros would look like a breach.
+    /// </summary>
+    public static bool IsEmpty(Reading r) =>
+        r.Moisture == 0 && r.Conductivity == 0 && r.Nitrogen == 0 && r.Phosphorus == 0 && r.Potassium == 0;
 }
 
 /// <summary>Rule: works out the state word shown for a sensor in tables.</summary>
 public static class SensorStateRule
 {
-    /// <summary>Battery below this percentage is called "battery low" in tables (the alert itself needs less than 25).</summary>
-    public const int LowBatteryLabelPercent = 55;
-
     public static SensorState Evaluate(Sensor sensor, SensorStatus? status, DateTime nowUtc)
     {
-        // retired, never reported, or silent for 2 hours: Offline (checked first, because it matters most)
+        // retired, never reported, or silent for 2 hours: Offline
         if (!sensor.IsActive || status is null || OfflineRule.IsOffline(status.LastCommunication, nowUtc)) return SensorState.Offline;
-        // still reporting, but the battery is getting low
-        if (status.BatteryPercent < LowBatteryLabelPercent) return SensorState.BatteryLow;
-        // still reporting, but the radio link is weak
-        if (status.Signal == SignalStrength.Weak) return SensorState.NeedsAttention;
-        // everything is fine
+        // reported in the last 2 hours
         return SensorState.Online;
     }
 }
@@ -91,7 +87,7 @@ public static class SensorCodeRule
     public static bool BelongsTo(string code, string locationId) => code.StartsWith(locationId + "-", StringComparison.Ordinal);
 }
 
-/// <summary>Rule: a breach 15 percent or more beyond the limit it crossed is Critical; a smaller miss is a Warning. Low battery is a Warning.</summary>
+/// <summary>Rule: a breach 15 percent or more beyond the limit it crossed is Critical; a smaller miss is a Warning.</summary>
 public static class SeverityRule
 {
     public const double CriticalFraction = 0.15; // 15%
@@ -141,4 +137,29 @@ public static class AlertWorkflow
         if (string.IsNullOrWhiteSpace(note)) throw new DomainException("A note is required.");
         return note.Trim();
     }
+}
+
+
+
+/// <summary>
+/// Rule: a new password needs at least 8 characters, with an upper-case letter, a lower-case letter, a number and a symbol,
+/// so "123456" or "password" are refused. The same policy is set in Firebase (Authentication > Settings > Password policy),
+/// so the invitation and reset pages that Firebase shows ask for it too.
+/// </summary>
+public static class PasswordRule
+{
+    public const int MinLength = 8;
+
+    /// <summary>The symbols Firebase's password policy accepts. Others, such as + = - or a space, do not count as a symbol there.</summary>
+    public const string Symbols = "^$*.[]{}()?\"!@#%&/\\,><':;|_~";
+
+    /// <summary>The rule in words, shown under the field and in the error message.</summary>
+    public const string Description = "At least 8 characters, with an upper-case letter, a lower-case letter, a number and a symbol such as ! @ # ? or _.";
+
+    public static bool IsStrong(string? password) =>
+        password is { Length: >= MinLength }
+        && password.Any(char.IsUpper)                       // A to Z
+        && password.Any(char.IsLower)                       // a to z
+        && password.Any(char.IsDigit)                       // 0 to 9
+        && password.Any(c => Symbols.Contains(c));          // one of Firebase's symbols
 }
