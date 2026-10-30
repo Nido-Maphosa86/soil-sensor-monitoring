@@ -172,6 +172,22 @@
       document.getElementById('notifForm').submit();
     });
   });
+  /* ---------- Password fields: the eye button shows or hides what was typed ---------- */
+  $all('[data-show-password]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var input = b.parentNode.querySelector('input');
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      b.classList.toggle('on', show);
+      b.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      b.title = b.getAttribute('aria-label');
+      input.focus();
+    });
+  });
+  // hide every password again before a form is sent, so the browser never saves it as plain text
+  $all('form').forEach(function (f) {
+    f.addEventListener('submit', function () { $all('[data-show-password].on', f).forEach(function (b) { b.click(); }); });
+  });
 
   window.SensorGrid = { initDashboard: initDashboard, initExportRange: initExportRange, initAlerts: initAlerts, initUsers: initUsers };
 })();

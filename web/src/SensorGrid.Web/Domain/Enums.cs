@@ -17,21 +17,12 @@ public enum AccountStatus
     Deactivated  // can no longer sign in anywhere
 }
 
-/// <summary>How strong the radio link of a sensor is.</summary>
-public enum SignalStrength
-{
-    None,   // no link at all
-    Weak,
-    Fair,
-    Strong
-}
 
 /// <summary>Why an alert was raised.</summary>
 public enum AlertType
 {
     Breach,  // a reading left its min/max band
-    Offline, // the sensor has been silent for 2 hours
-    Battery  // the battery dropped below 25%
+        Offline  // the sensor has been silent for 2 hours
 }
 
 /// <summary>How serious an alert is. Offline alerts are shown grey and do not use these colours.</summary>
@@ -49,7 +40,7 @@ public enum AlertStatus
     Resolved      // closed (a note is required)
 }
 
-/// <summary>What a sensor measures. Battery is not part of a reading, but a low battery can also raise an alert.</summary>
+/// <summary>What a sensor measures: the seven values of a gateway row that the app uses.</summary>
 public enum MeasuredParameter
 {
     Moisture,     // soil moisture, %
@@ -58,17 +49,14 @@ public enum MeasuredParameter
     Conductivity, // electrical conductivity, µS/cm
     Nitrogen,     // N, mg/kg
     Phosphorus,   // P, mg/kg
-    Potassium,    // K, mg/kg
-    Battery       // battery level, %
+    Potassium     // K, mg/kg
 }
 
 /// <summary>The live state of a sensor, shown in the sensor tables.</summary>
 public enum SensorState
 {
-    Online,         // reporting normally
-    BatteryLow,     // reporting, but the battery is below 25%
-    NeedsAttention, // reporting, but the signal is weak
-    Offline         // silent for 2 hours or more
+    Online,  // reported in the last 2 hours
+    Offline  // silent for 2 hours or more   // silent for 2 hours or more
 }
 
 /// <summary>The kinds of report the system can build.</summary>
@@ -86,10 +74,3 @@ public enum ReportFormat
     Csv
 }
 
-/// <summary>How a data load from the sensor gateway ended.</summary>
-public enum LoadOutcome
-{
-    Succeeded, // every reading was written
-    Partial,   // some readings were written
-    Failed     // nothing was written
-}

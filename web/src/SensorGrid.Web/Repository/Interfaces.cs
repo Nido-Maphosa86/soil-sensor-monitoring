@@ -28,7 +28,10 @@ public interface IUserRepository
     Task<IReadOnlyList<string>> UserIdsForLocationAsync(string locationId, CancellationToken ct = default);
 }
 
-/// <summary>sensors/{loc}/{sensor_id}</summary>
+/// <summary>
+/// sensors/{loc}/{sensor_id}, plus sensor_locations/{sensor_id} = loc. The gateway's rows carry no location, so the lookup tells the
+/// security rules which province a sensor's readings belong to. Both are written together in one update.
+/// </summary>
 public interface ISensorRepository
 {
     Task<IReadOnlyList<Sensor>> GetAllAsync(CancellationToken ct = default);
@@ -36,14 +39,16 @@ public interface ISensorRepository
     Task AddAsync(Sensor sensor, CancellationToken ct = default);
 }
 
-/// <summary>sensor_status/{loc}/{sensor}/{key}. Written by the gateway; the newest key is the current health.</summary>
+/// <summary>When a sensor last reported, from readings/{sensor_id}/latest (written by the gateway).</summary>
 public interface ISensorStatusRepository
 {
     Task<SensorStatus?> LatestAsync(string locationId, string sensorId, CancellationToken ct = default);
-    Task AddAsync(SensorStatus status, CancellationToken ct = default);
 }
 
-/// <summary>readings/{loc}/{sensor}/{key}. Written by the gateway. Reads use a key range, never the whole branch.</summary>
+/// <summary>
+/// readings/{sensor_id}/history/{push_id} and readings/{sensor_id}/latest, written by the gateway (a row about every 6 seconds).
+/// Only the gateway writes them. Reads use a key range, never the whole branch.
+/// </summary>
 public interface IReadingRepository
 {
     /// <summary>The readings of one sensor between two UTC times (inclusive), oldest first.</summary>
@@ -51,8 +56,6 @@ public interface IReadingRepository
 
     Task<Reading?> LatestAsync(string locationId, string sensorId, CancellationToken ct = default);
 
-    /// <summary>Writes many readings in one update (used by the seeder; the real gateway writes its own).</summary>
-    Task AddRangeAsync(IEnumerable<Reading> readings, CancellationToken ct = default);
 }
 
 /// <summary>thresholds/{loc}/{parameter}</summary>
@@ -94,8 +97,3 @@ public interface IReportRepository
     Task AddAsync(Report report, CancellationToken ct = default);
 }
 
-/// <summary>data_loads/{load_id}. Only the gateway writes these; the seeder writes one so the branch exists.</summary>
-public interface IDataLoadRepository
-{
-    Task AddAsync(DataLoad load, CancellationToken ct = default);
-}

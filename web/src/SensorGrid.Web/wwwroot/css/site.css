@@ -112,6 +112,15 @@ button{font-family:inherit}
 .inp input,.inp select,.inp textarea{border:0;outline:0;background:transparent;font:inherit;color:var(--tx);width:100%;height:100%}
 .inp:focus-within{border:1.5px solid var(--brand);box-shadow:0 0 0 3px rgba(16,121,90,.13)}
 .err .inp{border-color:var(--crit)}
+/* the eye button in password fields (views/shared/_passwordeye.cshtml) */
+.pw{position:relative}
+.modal .pw input[type=password],.modal .pw input[type=text]{padding-right:46px}
+.pw-eye{position:absolute;top:50%;right:8px;transform:translatey(-50%);width:32px;height:32px;border:0;border-radius:8px;background:transparent;color:var(--tx3);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.pw-eye:hover,.pw-eye:focus-visible{color:var(--brand);background:rgba(16,121,90,.08);outline:0}
+.pw-eye .eye-off,.pw-eye.on .eye-on{display:none}
+.pw-eye.on .eye-off{display:block}
+.inp .pw-eye{right:6px}
+.inp:has(.pw-eye) input{padding-right:36px}
 .err .hint,.errtext{color:var(--crit)}
 .errtext{font-size:11px;margin-top:6px}
 .fgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px 24px}

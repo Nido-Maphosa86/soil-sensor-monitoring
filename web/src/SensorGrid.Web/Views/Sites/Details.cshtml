@@ -48,11 +48,11 @@
     @if (shell.IsAdmin){<a class="btn ghost sm push" asp-controller="Sensors" asp-action="Register" asp-route-site="@Model.SiteId">Register sensor</a>}
   </div>
   <div class="tablewrap">
-    <table><thead><tr>@foreach (var h in new[] { "Sensor", "Installed", "Last reading", "Battery", "Signal", "Status" }){<th>@h.ToUpperInvariant()</th>}</tr></thead>
+    <table><thead><tr>@foreach (var h in new[] { "Sensor", "Installed", "Last reading", "Status" }){<th>@h.ToUpperInvariant()</th>}</tr></thead>
     <tbody>
     @foreach (var s in Model.Sensors)
     {
-      <tr><td style="font-weight:600">@s.SensorId</td><td class="num">@s.Installed</td><td class="num">@s.LastReading</td><td class="num">@s.Battery</td><td class="num">@s.Signal</td>
+      <tr><td style="font-weight:600">@s.SensorId</td><td class="num">@s.Installed</td><td class="num">@s.LastReading</td>
         <td>@Ui.Status(s.StateLabel, s.Tone)</td></tr>
     }
     </tbody></table>

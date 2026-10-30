@@ -66,8 +66,8 @@ public sealed class AuthService : IAuthService
         var user = await _users.GetAsync(userId);
         if (user is null) return new[] { "Account not found." };
         if (string.IsNullOrEmpty(current)) errors.Add("The current password is not correct.");
-        if (string.IsNullOrEmpty(next) || next.Length < 8 || !next.Any(char.IsLetter) || !next.Any(char.IsDigit))
-            errors.Add("The new password needs at least 8 characters, with letters and numbers.");
+        if (!PasswordRule.IsStrong(next))
+            errors.Add("The new password is too weak. " + PasswordRule.Description);
         if (next != confirm) errors.Add("The new password and the confirmation do not match.");
         if (errors.Count > 0) return errors;
 

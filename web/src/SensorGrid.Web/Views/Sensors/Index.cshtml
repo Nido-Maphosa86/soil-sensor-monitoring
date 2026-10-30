@@ -10,7 +10,7 @@
     var search = Context.Request.Query["search"].ToString();
     var state = Context.Request.Query["state"].ToString();
     if (state == "") state = "All statuses";
-    var heads = new[] { "Sensor", "Province", "Installed", "Last reading", "Battery", "Signal", "Firmware", "Status" };
+    var heads = new[] { "Sensor", "Province", "Installed", "Last reading", "Firmware", "Status" };
 }
 @section Right {
   <form method="get" style="display:contents">
@@ -37,7 +37,7 @@
     @foreach (var r in Model.Rows)
     {
       <tr><td style="font-weight:600;padding-top:16px;padding-bottom:16px">@r.SensorId</td><td class="num">@r.Province</td><td class="num">@r.Installed</td><td class="num">@r.LastReading</td>
-        <td class="num">@r.Battery</td><td class="num">@r.Signal</td><td class="num">@r.Firmware</td><td>@Ui.Status(r.StateLabel, r.Tone)</td></tr>
+        <td class="num">@r.Firmware</td><td>@Ui.Status(r.StateLabel, r.Tone)</td></tr>
     }
     </tbody></table>
   </div>

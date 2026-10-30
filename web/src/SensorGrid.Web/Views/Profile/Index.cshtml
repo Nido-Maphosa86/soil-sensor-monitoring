@@ -74,10 +74,13 @@
       <div style="font-size:16px;font-weight:700">Change password</div>
       <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     <div class="cap" style="margin-top:4px">Choose a new password for @Model.Name.</div>
-    <div style="margin-top:20px"><label class="lab" for="current">CURRENT PASSWORD</label><input type="password" id="current" name="current" required autocomplete="current-password" maxlength="100" /></div>
-    <div style="margin-top:16px"><label class="lab" for="next">NEW PASSWORD</label><input type="password" id="next" name="next" required minlength="8" autocomplete="new-password" maxlength="100" />
-      <div class="cap" style="margin-top:6px">At least 8 characters, with letters and numbers.</div></div>
-    <div style="margin-top:16px"><label class="lab" for="confirm">CONFIRM NEW PASSWORD</label><input type="password" id="confirm" name="confirm" required autocomplete="new-password" maxlength="100" /></div>
+    <div style="margin-top:20px"><label class="lab" for="current">CURRENT PASSWORD</label>
+      <div class="pw"><input type="password" id="current" name="current" required autocomplete="current-password" maxlength="100" />@await Html.PartialAsync("_passwordeye")</div></div>
+    <div style="margin-top:16px"><label class="lab" for="next">NEW PASSWORD</label>
+      <div class="pw"><input type="password" id="next" name="next" required minlength="8" autocomplete="new-password" maxlength="100" />@await Html.PartialAsync("_passwordeye")</div>
+      <div class="cap" style="margin-top:6px">@SensorGrid.Domain.PasswordRule.Description</div></div>
+    <div style="margin-top:16px"><label class="lab" for="confirm">CONFIRM NEW PASSWORD</label>
+      <div class="pw"><input type="password" id="confirm" name="confirm" required autocomplete="new-password" maxlength="100" />@await Html.PartialAsync("_passwordeye")</div></div>
     <hr />
     <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn">Update password</button></div>
   </form>

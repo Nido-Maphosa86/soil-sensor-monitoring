@@ -1,6 +1,6 @@
-// What this file is for: every repository, written ONCE against IRealtimeDatabaseStore with the exact paths and field names of the tree in the database design (SRS v4.0).
+// What this file is for: every repository, written ONCE against IRealtimeDatabaseStore with the exact paths and field names of the tree.
 // How it fits in: Repository folder. They only use the store interface, so the paths and field names live here and nowhere else.
-// Times are UTC milliseconds, dates are yyyy-MM-dd, reading and status keys are yyyyMMddHHmm in UTC, and empty values are not stored.
+// Times are UTC milliseconds, dates are yyyy-MM-dd and empty values are not stored. Readings are read exactly as the sensor gateway writes them.
 using System.Text.Json.Nodes;
 using SensorGrid.Domain;
 using static SensorGrid.Repository.TreeJson;
@@ -149,7 +149,12 @@ public sealed class SensorRepository : ISensorRepository
         Put(o, "depth_cm", s.DepthCm);
         Put(o, "modbus_slave_id", s.ModbusSlaveId);
         Put(o, "firmware_version", s.Firmware);
-        return _store.SetAsync($"sensors/{s.SiteId}/{s.SensorId}", o, ct);
+        // The lookup goes in the same update, so the security rules always know the sensor's province.
+        return _store.UpdateAsync("", new Dictionary<string, JsonNode?>
+        {
+            [$"sensors/{s.SiteId}/{s.SensorId}"] = o,
+            [$"sensor_locations/{s.SensorId}"] = s.SiteId
+        }, ct);
     }
 
     private static Sensor Map(string loc, string id, JsonNode? n) => new()
@@ -168,71 +173,44 @@ public sealed class SensorStatusRepository : ISensorStatusRepository
 
     public async Task<SensorStatus?> LatestAsync(string locationId, string sensorId, CancellationToken ct = default)
     {
-        // The newest status is the LAST key, so only one child is read.
-        var last = await _store.QueryByKeyAsync($"sensor_status/{locationId}/{sensorId}", limitToLast: 1, ct: ct);
-        if (last.Count == 0) return null;
-        var n = last[0].Value;
-        return new SensorStatus
-        {
-            SiteId = locationId, SensorId = sensorId, BatteryPercent = (int)(Long(n, "battery_level") ?? 0), PowerStatus = Str(n, "power_status"),
-            Signal = ParseEnum(Str(n, "signal"), SignalStrength.None), Status = Str(n, "status", "online"),
-            LastCommunication = Time(n, "last_communication") ?? default, RecordedAt = Time(n, "recorded_at") ?? default
-        };
-    }
-
-    public Task AddAsync(SensorStatus s, CancellationToken ct = default)
-    {
-        var o = new JsonObject();
-        Put(o, "battery_level", s.BatteryPercent);
-        Put(o, "power_status", s.PowerStatus);
-        Put(o, "signal", s.Signal.ToString());
-        Put(o, "status", s.Status);
-        Put(o, "last_communication", s.LastCommunication);
-        Put(o, "recorded_at", s.RecordedAt);
-        return _store.SetAsync($"sensor_status/{s.SiteId}/{s.SensorId}/{TimeKey(s.RecordedAt)}", o, ct);
+        // The gateway overwrites "latest" with every row, so its timestamp is when the sensor last reported.
+        var node = await _store.GetAsync($"readings/{sensorId}/latest", ct);
+        return Time(node, "timestamp") is { } at ? new SensorStatus { SiteId = locationId, SensorId = sensorId, LastCommunication = at } : null;
     }
 }
 
 public sealed class ReadingRepository : IReadingRepository
 {
-    private static readonly MeasuredParameter[] Values =
-        { MeasuredParameter.Moisture, MeasuredParameter.Temperature, MeasuredParameter.Conductivity, MeasuredParameter.Ph, MeasuredParameter.Nitrogen, MeasuredParameter.Phosphorus, MeasuredParameter.Potassium };
-
     private readonly IRealtimeDatabaseStore _store;
+    private readonly double _moistureDivisor;
 
-    public ReadingRepository(IRealtimeDatabaseStore store) => _store = store;
+    public ReadingRepository(IRealtimeDatabaseStore store, SensorGridSettings settings)
+    {
+        _store = store;
+        _moistureDivisor = settings.GatewayMoistureDivisor > 0 ? settings.GatewayMoistureDivisor : 1;
+    }
 
     public async Task<IReadOnlyList<Reading>> QueryAsync(string locationId, string sensorId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default)
     {
-        // A period is a key range: yyyyMMddHHmm sorts in time order.
-        var rows = await _store.QueryByKeyAsync($"readings/{locationId}/{sensorId}", TimeKey(fromUtc), TimeKey(toUtc), ct: ct);
-        return rows.Select(r => Map(locationId, sensorId, r.Key, r.Value)).ToList();
+        // The keys are push IDs, which start with the time they were made, so a period is a key range:
+        // from the first possible ID at fromUtc to the last possible ID at toUtc.
+        var rows = await _store.QueryByKeyAsync($"readings/{sensorId}/history",
+            PushIds.TimePrefix(fromUtc), PushIds.TimePrefix(toUtc) + new string(PushIds.LastChar, 12), ct: ct);
+        return rows.Select(r => Map(locationId, sensorId, r.Value)).ToList();
     }
 
     public async Task<Reading?> LatestAsync(string locationId, string sensorId, CancellationToken ct = default)
     {
-        var rows = await _store.QueryByKeyAsync($"readings/{locationId}/{sensorId}", limitToLast: 1, ct: ct);
-        return rows.Count == 0 ? null : Map(locationId, sensorId, rows[0].Key, rows[0].Value);
+        var node = await _store.GetAsync($"readings/{sensorId}/latest", ct);
+        return node is null ? null : Map(locationId, sensorId, node);
     }
 
-    public Task AddRangeAsync(IEnumerable<Reading> readings, CancellationToken ct = default)
+    // The gateway's own field names. "device_id" and "humidity" are in the row too but not used.
+    private Reading Map(string loc, string sensor, JsonNode? n) => new()
     {
-        var updates = new Dictionary<string, JsonNode?>();
-        foreach (var r in readings)
-        {
-            var o = new JsonObject();
-            Put(o, "captured_at", r.Timestamp);
-            foreach (var p in Values) Put(o, Key(p), r.ValueOf(p));
-            updates[$"readings/{r.SiteId}/{r.SensorId}/{TimeKey(r.Timestamp)}"] = o;
-        }
-        return updates.Count == 0 ? Task.CompletedTask : _store.UpdateAsync("", updates, ct);
-    }
-
-    private static Reading Map(string loc, string sensor, string key, JsonNode? n) => new()
-    {
-        SiteId = loc, SensorId = sensor, Timestamp = Time(n, "captured_at") ?? ParseTimeKey(key),
-        Moisture = Num(n, "soil_moisture") ?? 0, Temperature = Num(n, "soil_temperature") ?? 0, Ph = Num(n, "ph") ?? 0, Conductivity = Num(n, "conductivity") ?? 0,
-        Nitrogen = Num(n, "nitrogen") ?? 0, Phosphorus = Num(n, "phosphorus") ?? 0, Potassium = Num(n, "potassium") ?? 0
+        SiteId = loc, SensorId = sensor, Timestamp = Time(n, "timestamp") ?? default,
+        Moisture = Math.Round((Num(n, "moisture") ?? 0) / _moistureDivisor, 1), Temperature = Num(n, "temperature") ?? 0, Ph = Num(n, "ph") ?? 0,
+        Conductivity = Num(n, "ec") ?? 0, Nitrogen = Num(n, "nitrogen") ?? 0, Phosphorus = Num(n, "phosphorus") ?? 0, Potassium = Num(n, "potassium") ?? 0
     };
 }
 
@@ -428,22 +406,4 @@ public sealed class ReportRepository : IReportRepository
         PeriodStart = ParseDate(Str(n, "period_start")), PeriodEnd = ParseDate(Str(n, "period_end")), GeneratedAt = Time(n, "generated_at") ?? default,
         FilePath = Str(n, "file_path"), SizeBytes = Long(n, "file_size") ?? 0, SiteIds = links is null ? new List<string>() : links.Select(kv => kv.Key).ToList()
     };
-}
-
-public sealed class DataLoadRepository : IDataLoadRepository
-{
-    private readonly IRealtimeDatabaseStore _store;
-
-    public DataLoadRepository(IRealtimeDatabaseStore store) => _store = store;
-
-    public Task AddAsync(DataLoad d, CancellationToken ct = default)
-    {
-        var o = new JsonObject();
-        Put(o, "source", d.Source);
-        Put(o, "started_at", d.StartedAt);
-        Put(o, "finished_at", d.FinishedAt);
-        Put(o, "outcome", d.Outcome.ToString());
-        Put(o, "readings_written", d.ReadingsWritten);
-        return _store.SetAsync($"data_loads/{d.LoadId}", o, ct);
-    }
 }

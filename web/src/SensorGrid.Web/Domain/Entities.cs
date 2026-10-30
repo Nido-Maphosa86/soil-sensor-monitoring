@@ -51,22 +51,21 @@ public class Sensor
     public int ModbusSlaveId { get; set; }               // address on the RS485 bus; unique within a site
     public string Firmware { get; set; } = "v2.4.1";
 }
-
-/// <summary>sensor_status/{loc}/{sensor}/{key}. The newest one is the current health of the sensor.</summary>
+/// <summary>
+/// When a sensor last reported: the timestamp of readings/{sensor_id}/latest. The gateway sends nothing else about the sensor's health
+/// (no battery, signal or power status), so this is all the app knows. Two hours without a row means Offline.
+/// </summary>
 public class SensorStatus
 {
     public string SiteId { get; set; } = "";
     public string SensorId { get; set; } = "";
-    public int BatteryPercent { get; set; }              // 0 to 100
-    public string PowerStatus { get; set; } = "Battery"; // how the sensor is powered
-    public SignalStrength Signal { get; set; }           // None, Weak, Fair or Strong
-    /// <summary>"online" or "offline" as reported by the gateway. The app also checks the age of the last reading.</summary>
-    public string Status { get; set; } = "online";
-    public DateTime LastCommunication { get; set; }      // last time the sensor talked to the gateway
-    public DateTime RecordedAt { get; set; }             // when this status was written
+    public DateTime LastCommunication { get; set; }      // the timestamp of the gateway's newest row
 }
 
-/// <summary>readings/{loc}/{sensor}/{key}. One set of seven values. The key is the capture time as yyyyMMddHHmm in UTC.</summary>
+/// <summary>
+/// One row from the gateway, at readings/{sensor_id}/history/{push_id} (a new row about every 6 seconds) or readings/{sensor_id}/latest.
+/// The gateway sends no location; SiteId comes from the registered sensor. Humidity is in the row too, but the app does not use it.
+/// </summary>
 public class Reading
 {
     public string SiteId { get; set; } = "";
@@ -80,7 +79,7 @@ public class Reading
     public double Phosphorus { get; set; }               // mg/kg
     public double Potassium { get; set; }                // mg/kg
 
-    /// <summary>Returns the value for one parameter (battery is not part of a reading).</summary>
+    /// <summary>Returns the value for one parameter (one of the seven values).</summary>
     public double ValueOf(MeasuredParameter parameter) => parameter switch
     {
         MeasuredParameter.Moisture => Moisture,
@@ -90,7 +89,7 @@ public class Reading
         MeasuredParameter.Nitrogen => Nitrogen,
         MeasuredParameter.Phosphorus => Phosphorus,
         MeasuredParameter.Potassium => Potassium,
-        // asking for Battery (or anything else) is a programming mistake, so stop with a clear message
+        // asking for any other parameter is a programming mistake, so stop with a clear message
         _ => throw new ArgumentOutOfRangeException(nameof(parameter), "A reading has no value for this parameter.")
     };
 }
@@ -123,7 +122,7 @@ public class Alert
     public string AlertId { get; set; } = "";
     public string SiteId { get; set; } = "";
     public string SensorId { get; set; } = "";
-    public AlertType AlertType { get; set; }             // Breach, Offline or Battery
+    public AlertType AlertType { get; set; }             // Breach or Offline
     /// <summary>Null for offline alerts, because no parameter crossed a band.</summary>
     public MeasuredParameter? Parameter { get; set; }
     public AlertSeverity Severity { get; set; }          // Warning or Critical
@@ -166,13 +165,3 @@ public class Report
     public List<string> SiteIds { get; set; } = new();   // the provinces included in the report
 }
 
-/// <summary>data_loads/{load_id}. A record of one batch the gateway wrote. Only the gateway writes these.</summary>
-public class DataLoad
-{
-    public string LoadId { get; set; } = "";
-    public string Source { get; set; } = "";             // which gateway sent the batch
-    public DateTime StartedAt { get; set; }
-    public DateTime FinishedAt { get; set; }
-    public LoadOutcome Outcome { get; set; }             // Succeeded, Partial or Failed
-    public int ReadingsWritten { get; set; }             // how many readings were saved
-}

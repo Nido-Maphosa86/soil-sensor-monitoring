@@ -76,10 +76,7 @@ public static class ParameterCatalog
         new(MeasuredParameter.Potassium, "Potassium (K)", "Potassium", "mg/kg", 0, "#C2612F", 110, 180),
     };
 
-    private static readonly Info BatteryInfo = new(MeasuredParameter.Battery, "Battery", "Battery", "%", 0, "#8A9691", 25, 100);
-
-    public static Info Get(MeasuredParameter parameter) =>
-        parameter == MeasuredParameter.Battery ? BatteryInfo : Readings.First(i => i.Parameter == parameter);
+    public static Info Get(MeasuredParameter parameter) => Readings.First(i => i.Parameter == parameter);
 }
 
 /// <summary>Turns values and dates into the exact text the screens show. Times are stored in UTC and shown in South African time (UTC+2).</summary>
@@ -145,15 +142,7 @@ public static class Display
 
     public static string RoleLabel(UserRole role) => role == UserRole.Administrator ? "Administrator" : "Field officer";
 
-    public static string SignalLabel(SignalStrength s) => s.ToString();
-
-    public static string StateLabel(SensorState s) => s switch
-    {
-        SensorState.Online => "Online",
-        SensorState.BatteryLow => "Battery low",
-        SensorState.NeedsAttention => "Needs attention",
-        _ => "Offline"
-    };
+    public static string StateLabel(SensorState s) => s == SensorState.Online ? "Online" : "Offline";
 }
 
 /// <summary>Reads the bands and tells whether a reading is inside them.</summary>

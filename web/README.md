@@ -1,116 +1,134 @@
 # SensorGrid web console
 
-This folder holds the SensorGrid web console. It contains **no sample data**. Every site, sensor, reading, alert and account comes from
-the Firebase project. Until the Firebase settings are filled in, every page shows **"Waiting for the Firebase connection"** and lists the missing settings.
+## What the app does
 
-| Folder | What is in it |
+SensorGrid monitors the soil on pigeon pea farms in different provinces (for example Free State, FS).
+Sensors in the soil measure **moisture, temperature, pH, conductivity, nitrogen, phosphorus and potassium**.
+A sensor gateway sends a new reading about every 6 seconds to a Firebase database, and this web console shows them.
+
+With the web console you can:
+- see a **dashboard** of every province, with a moisture chart for the last 24 hours, 7 days or 30 days;
+- look at each **site** and its **sensors**, and see which sensors are online or offline;
+- read the **readings log** and download it as a CSV file;
+- set the **thresholds** (the allowed minimum and maximum of each value);
+- get **alerts** when a value goes outside its threshold, or when a sensor stops sending for 2 hours, and acknowledge or resolve them with a note;
+- create **reports** (PDF or CSV);
+- manage **user accounts** (invite people and give them provinces).
+
+There are two kinds of user:
+
+| User | What they can do |
 |---|---|
-| `web/src/SensorGrid.Web/Domain` | Entities, enums and business rules (breach, 2 hour offline, 25% battery, note required, state only moves forward). |
-| `web/src/SensorGrid.Web/Repository` | The Firebase connection: Realtime Database store, Firebase Authentication, access token, report files. Every repository. |
-| `web/src/SensorGrid.Web/Service` | Use cases, province filtering, alert evaluator, CSV and PDF writers, first-administrator setup. |
-| `web/src/SensorGrid.Web/Controllers`, `Views` | Pages W1 to W12, matching `docs/design/Web_Application_Design.html`. |
-| `firebase/` | `database.rules.json` (security rules for the mobile app) and `firebase.json` (rules deploy and local emulators). |
+| **Administrator** | Everything, in the web console only. |
+| **Field officer** | Sees only the provinces given to them, in the web console and the mobile app. |
 
-Every place where the connection happens is marked `// CONNECT FIREBASE HERE`.
+The app has no sample data. Everything comes from the Firebase project.
 
-## Who can use what
+## What you need
 
-| Role (stored value) | Shown as | Web console | Mobile app |
-|---|---|---|---|
-| `Administrator` | Administrator | Yes, everything | **No.** The database rules give administrators no access from the app. |
-| `Standard User` | Field officer | Yes, assigned provinces only | Yes, assigned provinces only |
+- The **.NET 10 SDK**. Check it with `dotnet --version`.
+- The project's **Firebase settings** and its **service-account key file**. Ask the project owner for them. Never put the key file inside this repository.
 
-The same Firebase Authentication account signs in to both. Deactivating an account in **User accounts** disables it in Firebase,
-so it stops working on the web and the mobile app at once.
+## Run the app
 
-## Connect Firebase
-
-1. Create the Firebase project. In the console:
-   - **Authentication > Sign-in method:** enable **Email/Password**.
-   - **Build > Realtime Database:** create the database.
-   - **Authentication > Settings > Authorized domains:** add the domain the web console runs on.
-   - **Authentication > Templates > Password reset:** reword the email so it works for invitations too. For example: *"Use this link to set your SensorGrid password. Field officers can then sign in on the web console and the mobile app."*
-2. Deploy the security rules (they also create the alerts index). Install the Firebase CLI first:
+1. Open a terminal in the web project folder:
    ```bash
-   npm install -g firebase-tools
+   cd web/src/SensorGrid.Web
+   ```
+2. Fill in the Firebase settings. You only do this once on each computer. Use the values from the project owner:
+   ```bash
+   dotnet user-secrets set "SensorGrid:Firebase:ProjectId" "the-project-id"
    ```
    ```bash
-   cd web/firebase
+   dotnet user-secrets set "SensorGrid:Firebase:DatabaseUrl" "the-database-url"
    ```
    ```bash
-   firebase deploy --only database --project <your-project-id>
-   ```
-3. **Project settings > Service accounts > Generate new private key.** Save the file **outside** this repository, for example `C:\keys\sensorgrid-admin.json`.
-4. Fill in the settings with user-secrets (run these inside `web/src/SensorGrid.Web`):
-   ```bash
-   dotnet user-secrets set "SensorGrid:Firebase:ProjectId" "your-project-id"
-   ```
-   ```bash
-   dotnet user-secrets set "SensorGrid:Firebase:DatabaseUrl" "https://your-project-id-default-rtdb.firebaseio.com"
-   ```
-   ```bash
-   dotnet user-secrets set "SensorGrid:Firebase:WebApiKey" "your-web-api-key"
+   dotnet user-secrets set "SensorGrid:Firebase:WebApiKey" "the-web-api-key"
    ```
    ```bash
    dotnet user-secrets set "SensorGrid:Firebase:ServiceAccountKeyPath" "C:\keys\sensorgrid-admin.json"
    ```
    ```bash
-   dotnet user-secrets set "SensorGrid:WebAppUrl" "https://the-address-of-this-console"
-   ```
-   On a server, use environment variables instead, for example `SensorGrid__Firebase__ProjectId`.
-5. **First administrator.** A new database has no accounts. Set these, then start the app once:
-   ```bash
-   dotnet user-secrets set "SensorGrid:FirstAdministrator:Email" "you@example.org"
+   dotnet user-secrets set "SensorGrid:WebAppUrl" "http://localhost:5300"
    ```
    ```bash
-   dotnet user-secrets set "SensorGrid:FirstAdministrator:Name" "Your Name"
+   dotnet user-secrets set "SensorGrid:RunAlertEvaluatorInWebApp" "true"
    ```
-   The app creates the account and Firebase emails a "set your password" link. This only happens while the database has no accounts.
-6. Run the console:
+   Check them with:
    ```bash
-   dotnet run --project web/src/SensorGrid.Web
+   dotnet user-secrets list
    ```
-   Sign in, then:
-   - **Sites > Add site:** add each site. The code is the two-letter prefix the sensor gateway uses (FS for FS-01).
-   - **Thresholds:** review each site's bands.
-   - **Sensors > Register sensor:** register the sensors.
-   - **User accounts > Invite user:** invite people.
+3. Build the app. It must say **Build succeeded**:
+   ```bash
+   dotnet build
+   ```
+4. Start the app:
+   ```bash
+   dotnet run
+   ```
+5. Open **http://localhost:5300** in your browser and sign in.
+6. To stop the app, press **Ctrl + C** in the terminal.
 
-## Inviting people
+If the page says **"Waiting for the Firebase connection"**, a setting from step 2 is missing. The page lists which one.
 
-**Invite user** does four things:
-1. Creates the Firebase Authentication account. Nobody knows its random password.
-2. Writes `users/{uid}` with status **Invited**, plus `user_locations` and `location_users`.
-3. Asks Firebase to email a "set your password" link.
-4. Shows **Resend invitation** next to the account until the person signs in for the first time. The status then becomes **Active**, on the web or in the mobile app.
+## The first time (administrator only)
 
-## Data that comes from elsewhere
-
-- **Readings and sensor status:** written by the sensor gateway to `readings/{loc}/{sensor}/{yyyyMMddHHmm}` and `sensor_status/...` (UTC keys), with the field names of the Realtime Database design in the SRS. The console only reads them.
-- **Alerts and notifications:** written by the alert evaluator. On the **Blaze** plan, run it as a scheduled Cloud Function. On the free **Spark** plan, set `SensorGrid:RunAlertEvaluatorInWebApp` to `true` and the console runs it every minute.
-- **Report files:** saved in `App_Data/reports` on the web server. On the Blaze plan, set `SensorGrid:UseCloudStorageForReports` to `true` and `SensorGrid:Firebase:StorageBucket` to put them in Cloud Storage.
-
-## The mobile app
-
-The field-officer mobile app follows these rules:
-- Sign in with Firebase Authentication (email and password).
-- Read `users/{uid}`. If it cannot be read, or the role is not `Standard User`, sign out and say *"Administrators use the web console."* The rules refuse administrators anyway.
-- If `account_status` is `Invited`, set it to `Active`.
-- Read only the provinces in `user_locations/{uid}`.
-- Acknowledge or resolve an alert in **one** multi-path update. Write `alert_actions/{loc}/{id}/{acknowledged|resolved}` (`user_id`, `note`, `acted_at`) and `alerts/{loc}/{id}/state` together. The rules require the note.
-
-## Testing locally without a Firebase project
-
-The Firebase Emulator Suite needs Java. Start the emulators:
+A new database has no accounts yet. Before the first start, set your own email and name:
 ```bash
-cd web/firebase
+dotnet user-secrets set "SensorGrid:FirstAdministrator:Email" "you@example.org"
 ```
 ```bash
-firebase emulators:start --only auth,database
+dotnet user-secrets set "SensorGrid:FirstAdministrator:Name" "Your Name"
 ```
-Then set these and run the console:
-- `SensorGrid:Firebase:UseEmulators` to `true`
-- `SensorGrid:Firebase:DatabaseUrl` to `http://127.0.0.1:9000/?ns=<project-id>`
-- `SensorGrid:Firebase:ProjectId` and `WebApiKey` to any values
+Start the app. Firebase emails you a link to set your password. Then sign in and:
+1. **Sites > Add site:** add each site, for example **FS**.
+2. **Sensors > Register sensor:** register each sensor with exactly the code the gateway uses, for example **FS-01** under FS.
+3. **Thresholds:** check the minimum and maximum of each value.
+4. **User accounts > Invite user:** invite the field officers and give them their provinces. Each person gets an email to set their password.
 
-No key file is needed. The emulator shows the invitation emails in its log instead of sending them.
+## Where the readings come from
+
+The sensor gateway is built by a third party. It writes to the database like this:
+
+```
+readings / FS-01 / history / (a new row about every 6 seconds)
+readings / FS-01 / latest  (the newest row)
+```
+
+The app reads these rows as they are and uses these fields:
+
+| Gateway field | Shown as |
+|---|---|
+| `timestamp` | the time of the reading |
+| `moisture` | soil moisture, divided by 10 (281 shows as 28.1 %) |
+| `temperature` | soil temperature, °C |
+| `ec` | conductivity, µS/cm |
+| `ph`, `nitrogen`, `phosphorus`, `potassium` | the same names |
+
+Good to know:
+- The gateway sends **no location**. The app finds the site from the registered sensor (FS-01 belongs to FS), so the sensor codes must match.
+- The gateway sends **no battery or signal**, so the app does not show them.
+- A sensor is **Offline** when no new row has come for 2 hours.
+- A row of zeros means the probe is not in the soil. It is shown, but it does not raise an alert.
+
+## Folders
+
+| Folder | What is in it |
+|---|---|
+| `web/src/SensorGrid.Web/Domain` | The business rules (breach, 2 hours offline, a note is required). |
+| `web/src/SensorGrid.Web/Repository` | Reading and writing the Firebase database. |
+| `web/src/SensorGrid.Web/Service` | What the app does: dashboards, alerts, reports, user accounts. |
+| `web/src/SensorGrid.Web/Controllers`, `Views` | The pages you see in the browser. |
+| `web/firebase` | The database security rules. Publish them in **Firebase > Realtime Database > Rules**. |
+
+The app is built with **Onion Architecture**: the pages only talk to the services, the services talk to the repositories, and only the repositories talk to Firebase.
+
+## Something is wrong?
+
+| Problem | What to do |
+|---|---|
+| "Waiting for the Firebase connection" | A setting is missing. Run `dotnet user-secrets list` and compare it with step 2. |
+| "The file it points to does not exist" | The key file path is wrong. Check `ServiceAccountKeyPath`. |
+| A sensor shows **Offline** | No new row in 2 hours. Check the gateway is running, and that the sensor code matches exactly. |
+| No readings at all | Check the sensor is registered with the same code the gateway uses (FS-01). |
+| Port 5300 is already in use | Another copy of the app is running. Stop it with **Ctrl + C**. |

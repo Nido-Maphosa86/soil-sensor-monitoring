@@ -13,6 +13,25 @@ public static class PushIds
     private static long _lastTime;                         // the millisecond of the previous ID
     private static readonly int[] LastRandom = new int[12]; // the random part of the previous ID
 
+    /// <summary>The highest character a push ID can contain. A time prefix followed by twelve of these is the last ID of that millisecond.</summary>
+    public const char LastChar = 'z';
+
+    /// <summary>
+    /// The first 8 characters of every push ID made at this time. Because push IDs start with their time, a period of push-ID keys
+    /// (for example the gateway's history rows) can be read as a key range.
+    /// </summary>
+    public static string TimePrefix(DateTime utc)
+    {
+        var t = new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
+        var stamp = new char[8];
+        for (var i = 7; i >= 0; i--)
+        {
+            stamp[i] = Chars[(int)(t % 64)];
+            t /= 64;
+        }
+        return new string(stamp);
+    }
+
     /// <summary>A new ID stamped with the current time.</summary>
     public static string New() => At(DateTime.UtcNow);
 
@@ -26,13 +45,7 @@ public static class PushIds
             _lastTime = now;
 
             // the first 8 characters are the time, written in base 64, so IDs sort by time
-            var stamp = new char[8];
-            var t = now;
-            for (var i = 7; i >= 0; i--)
-            {
-                stamp[i] = Chars[(int)(t % 64)];
-                t /= 64;
-            }
+            var stamp = TimePrefix(utc).ToCharArray();
 
             if (!duplicate)
             {

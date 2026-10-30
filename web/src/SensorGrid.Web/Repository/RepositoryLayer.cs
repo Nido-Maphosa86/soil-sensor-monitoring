@@ -54,7 +54,6 @@ public static class RepositoryLayer
         services.AddSingleton<IAlertRepository, AlertRepository>();
         services.AddSingleton<INotificationRepository, NotificationRepository>();
         services.AddSingleton<IReportRepository, ReportRepository>();
-        services.AddSingleton<IDataLoadRepository, DataLoadRepository>();
         return services;
     }
 }

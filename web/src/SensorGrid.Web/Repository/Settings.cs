@@ -23,6 +23,12 @@ public sealed class SensorGridSettings
 
     /// <summary>The first administrator. Used ONCE, when the database has no accounts yet. See README.md, "First administrator".</summary>
     public FirstAdministratorSettings FirstAdministrator { get; set; } = new();
+
+    /// <summary>
+    /// The gateway sends moisture as a raw number (for example 281). It is divided by this to show a percentage (281 / 10 = 28.1 %).
+    /// Set it to 1 to show the number exactly as the gateway sends it.
+    /// </summary>
+    public double GatewayMoistureDivisor { get; set; } = 10;
 }
 
 /// <summary>Who becomes the first administrator of a brand-new database.</summary>

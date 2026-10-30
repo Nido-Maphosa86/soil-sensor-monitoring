@@ -41,14 +41,10 @@
         ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'Standard User' && (root.child('users').child(auth.uid).child('account_status').val() === 'Active' || root.child('users').child(auth.uid).child('account_status').val() === 'Invited') && root.child('user_locations').child(auth.uid).child($loc).val() === true"
       }
     },
-    "sensor_status": {
-      "$loc": {
-        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'Standard User' && (root.child('users').child(auth.uid).child('account_status').val() === 'Active' || root.child('users').child(auth.uid).child('account_status').val() === 'Invited') && root.child('user_locations').child(auth.uid).child($loc).val() === true"
-      }
-    },
+
     "readings": {
-      "$loc": {
-        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'Standard User' && (root.child('users').child(auth.uid).child('account_status').val() === 'Active' || root.child('users').child(auth.uid).child('account_status').val() === 'Invited') && root.child('user_locations').child(auth.uid).child($loc).val() === true"
+      "$sensor": {
+        ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() === 'Standard User' && (root.child('users').child(auth.uid).child('account_status').val() === 'Active' || root.child('users').child(auth.uid).child('account_status').val() === 'Invited') && root.child('sensor_locations').child($sensor).isString() && root.child('user_locations').child(auth.uid).child(root.child('sensor_locations').child($sensor).val()).val() === true"
       }
     },
     "thresholds": {
