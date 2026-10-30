@@ -11,7 +11,7 @@ public sealed class SensorService : ISensorService
 {
     public const int PageSize = 10;
     public static readonly IReadOnlyList<string> FirmwareVersions = new[] { "v2.4.1", "v2.4.0" };
-    public static readonly IReadOnlyList<string> StateFilters = new[] { "All statuses", "Online", "Battery low", "Needs attention", "Offline" };
+    public static readonly IReadOnlyList<string> StateFilters = new[] { "All statuses", "Online", "Offline" };
 
     private readonly DataScope _scope;
     private readonly ISensorRepository _sensors;
