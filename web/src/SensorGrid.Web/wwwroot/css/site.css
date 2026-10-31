@@ -83,6 +83,8 @@ button{font-family:inherit}
   align-items:center;padding:0 15px;font-size:13px;font-weight:500;white-space:nowrap;position:relative;cursor:pointer}
 /* a real select or date input sits invisibly on top of the styled box, so the box looks exactly like the prototype */
 .selectbox select,.selectbox input{position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;cursor:pointer;font:inherit}
+/* date boxes: the whole box takes the click and opens the calendar (site.js), wherever you click inside it */
+.selectbox input[type=date],.selectbox input[type=datetime-local]{pointer-events:none}
 .btn{height:40px;border-radius:11px;background:var(--brand);color:#fff;font-size:13px;font-weight:600;
   display:inline-flex;align-items:center;padding:0 19px;white-space:nowrap;border:0;cursor:pointer}
 .btn.ghost{background:#fff;color:var(--tx);border:1px solid var(--line);font-weight:500}
