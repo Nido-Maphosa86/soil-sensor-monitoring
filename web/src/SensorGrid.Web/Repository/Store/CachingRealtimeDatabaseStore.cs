@@ -3,8 +3,9 @@
 // so every repository uses it without knowing. Each Firebase call takes about 0.2 s, and one page used to read the same account,
 // provinces and alerts two or three times; now the repeats come from memory.
 //   - Rarely changing branches (provinces, sensors, thresholds, accounts) are remembered for 30 seconds.
-//   - Alerts, notifications and each sensor's latest reading are remembered for 10 seconds, so they still look live
-//     (the bell refreshes every 15 seconds and the live pages every 10).
+//   - Alerts and notifications are remembered for 10 seconds (the bell refreshes every 15 seconds anyway).
+//   - Each sensor's latest reading is remembered for only 3 seconds, less than the gateway's 6-second interval, so the gauges
+//     and a manual refresh always show the newest reading; the 3 seconds only saves a second call within the same page.
 //   - Time ranges of readings (QueryByKeyAsync) are never remembered.
 // Every write made through the app forgets the paths it touched straight away, so the app always sees its own changes.
 // Changes made elsewhere (the mobile app, the gateway) show up when the remembered copy runs out.
@@ -17,6 +18,7 @@ public sealed class CachingRealtimeDatabaseStore : IRealtimeDatabaseStore
 {
     private static readonly TimeSpan Long = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan Short = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan Live = TimeSpan.FromSeconds(3);
 
     /// <summary>The first part of a path and how long its answers are remembered.</summary>
     private static readonly Dictionary<string, TimeSpan> Branches = new()
@@ -77,7 +79,7 @@ public sealed class CachingRealtimeDatabaseStore : IRealtimeDatabaseStore
     private static TimeSpan? HowLong(string path)
     {
         var parts = path.Split('/');
-        if (parts.Length == 3 && parts[0] == "readings" && parts[2] == "latest") return Short; // readings/{sensor}/latest
+        if (parts.Length == 3 && parts[0] == "readings" && parts[2] == "latest") return Live; // readings/{sensor}/latest
         return Branches.TryGetValue(parts[0], out var keep) ? keep : null;
     }
 
