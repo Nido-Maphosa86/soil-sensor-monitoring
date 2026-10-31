@@ -11,13 +11,19 @@ public sealed record KpiDto(string Label, string Value, string Sub, Tone Tone);
 public sealed record SiteStatusDto(string SiteId, string Name, string SensorsText, string StatusLabel, Tone Tone, int Percent);
 public sealed record LatestReadingDto(string Time, string Province, string Sensor, IReadOnlyList<string> Values, string Status, Tone Tone);
 public sealed record DashboardDto(string Subtitle, IReadOnlyList<KpiDto> Kpis, IReadOnlyList<SiteStatusDto> Sites, IReadOnlyList<LatestReadingDto> Latest, string ReadingsCaption);
-public sealed record ChartSeriesDto(string SiteId, string Name, string Colour, IReadOnlyList<double> Values);
-public sealed record MoistureChartDto(IReadOnlyList<string> Labels, IReadOnlyList<ChartSeriesDto> Series, string Caption);
+/// <summary>One point of a trend line: T is the time (milliseconds since 1970, UTC), V the value.</summary>
+public sealed record TrendPointDto(long T, double V);
+public sealed record TrendSeriesDto(string Name, string Colour, IReadOnlyList<TrendPointDto> Points);
+public sealed record TrendLabelDto(long T, string Text);
+/// <summary>The Dashboard trend chart: one line per province for one value, from From to To. Live means the page reloads it every 10 seconds.</summary>
+public sealed record TrendChartDto(string Caption, string Unit, int Decimals, long From, long To, double? BandMin, double? BandMax,
+    IReadOnlyList<TrendLabelDto> Labels, IReadOnlyList<TrendSeriesDto> Series, bool Live);
 public sealed record SiteCardDto(string SiteId, string Name, string Coordinates, string StatusLabel, Tone Tone, string CropLine, int Sensors, int ReadingsToday, int InRangePercent);
 public sealed record AverageRowDto(string Name, IReadOnlyList<string> Values, string StatusText, Tone Tone);
 public sealed record FeedItemDto(string When, string Province, string Text, Tone Tone);
 public sealed record SitesPageDto(string Subtitle, string AverageCaption, IReadOnlyList<SiteCardDto> Cards, IReadOnlyList<AverageRowDto> Averages, IReadOnlyList<FeedItemDto> Feed);
-public sealed record ParamCardDto(string Label, string Value, string Unit, string StatusLabel, Tone Tone, string Colour, int Position);
+/// <summary>One live reading on the Site detail page. Position (0 to 100) places the value on the gauge, where the target band covers 18 to 76.</summary>
+public sealed record ParamCardDto(string Label, string Value, string Unit, string StatusLabel, Tone Tone, string Colour, int Position, string Target);
 public sealed record SiteDetailDto(string SiteId, string Name, string Subtitle, IReadOnlyList<ParamCardDto> Parameters, string Summary, Tone SummaryTone,
     string Updated, IReadOnlyList<SensorRowDto> Sensors, string SensorsCaption);
 

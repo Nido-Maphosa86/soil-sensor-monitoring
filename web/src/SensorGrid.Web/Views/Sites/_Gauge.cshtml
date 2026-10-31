@@ -1,0 +1,27 @@
+@* What this file is for: one round gauge on the Site detail page (W4): the latest value in the middle, the target band in light green,
+   and an arc that fills up to the value (red when the value is outside the band).
+   How it fits in: Details.cshtml draws one per parameter. The ring is an open circle (the gap at the bottom) drawn with SVG circles and
+   stroke-dasharray; Position (0 to 100) says how far round the ring the value is, and the band always covers 18 to 76, as on the old bar. *@
+@model ParamCardDto
+@{
+    const double r = 54, cx = 70, cy = 70;
+    var circle = 2 * Math.PI * r;                       // the whole circle
+    var sweep = circle * 0.75;                          // the ring is three quarters of a circle
+    var arc = Model.Tone == Tone.Bad ? Ui.Colour(Tone.Bad) : Model.Colour;
+    var angle = (135 + 270 * Model.Position / 100.0) * Math.PI / 180;   // where the dot sits; the ring starts at 135 degrees (bottom left)
+    string N(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+}
+<div class="card gauge">
+  <div class="ghead"><s style="background:@Model.Colour"></s>@Model.Label</div>
+  <svg class="ring" viewBox="0 0 140 140" role="img" aria-label="@Model.Label @Model.Value @Model.Unit, @Model.StatusLabel">
+    <g transform="rotate(135 70 70)" fill="none" stroke-width="10" stroke-linecap="round">
+      <circle cx="70" cy="70" r="54" stroke="#E7EDE9" stroke-dasharray="@N(sweep) @N(circle)" />
+      <circle cx="70" cy="70" r="54" stroke="rgba(97,201,160,.45)" stroke-linecap="butt" stroke-dasharray="0 @N(sweep * 0.18) @N(sweep * 0.58) @N(circle)" />
+      <circle cx="70" cy="70" r="54" stroke="@arc" stroke-dasharray="@N(sweep * Model.Position / 100) @N(circle)" />
+    </g>
+    <circle cx="@N(cx + r * Math.Cos(angle))" cy="@N(cy + r * Math.Sin(angle))" r="7" fill="#fff" stroke="@arc" stroke-width="4" />
+    <text x="70" y="72" text-anchor="middle" class="gv">@Model.Value</text>
+    <text x="70" y="92" text-anchor="middle" class="gu">@Model.Unit</text>
+  </svg>
+  <div class="gstat">@Ui.Status(Model.StatusLabel, Model.Tone)<span class="gband">@Model.Target</span></div>
+</div>

@@ -77,6 +77,8 @@
       else label.textContent = ctl.value ? ctl.value.replace('T', ' ') : 'Any';
       if (ctl.hasAttribute('data-autosubmit') && ctl.form) ctl.form.submit();
     });
+    // the date box is invisible, and a click in its middle does not open the calendar by itself, so open it here
+    if (ctl.tagname === 'input' && ctl.showpicker) box.addeventlistener('click', function () { try { ctl.showpicker(); } catch (e) { } });
   });
   $all('[data-confirm]').forEach(function (b) { b.addEventListener('click', function (e) { if (!window.confirm(b.getAttribute('data-confirm'))) e.preventDefault(); }); });
   $all('[data-set-value]').forEach(function (b) { b.addEventListener('click', function () { var t = document.getElementById(b.getAttribute('data-set-value')); if (t) t.value = b.getAttribute('data-value'); }); });
@@ -89,36 +91,71 @@
     sel.addEventListener('change', function () { btn.href = btn.href.replace(/range=[^&]*/, 'range=' + sel.value); });
   }
 
-  /* ---------- Dashboard moisture chart (same drawing rules as the prototype) ---------- */
+  /* ---------- Dashboard trend chart: one line per province; "Last 15 minutes" has a point every 10 seconds and reloads every 10 seconds ---------- */
   function initDashboard() {
     initExportRange();
-    var sel = $('#rangeSel');
+    var rangeSel = $('#rangeSel'), paramSel = $('#paramSel'), timer = null;
+    var L = 72, R = 704, T = 20, B = 182;                          // the plotting area inside the 736 x 220 picture
     function draw(data) {
-      var svg = $('#moistureSvg'), NS = 'http://www.w3.org/2000/svg';
+      var svg = $('#trendSvg'), NS = 'http://www.w3.org/2000/svg';
       svg.textContent = '';
       function add(tag, attrs, text) { var n = document.createElementNS(NS, tag); Object.keys(attrs).forEach(function (k) { n.setAttribute(k, attrs[k]); }); if (text) n.textContent = text; svg.appendChild(n); return n; }
-      var y = function (v) { return 20 + (35 - Math.max(15, Math.min(35, v))) * 8.1; };
-      add('rect', { x: 72, y: y(30), width: 632, height: y(20) - y(30), fill: 'rgba(97,201,160,.10)' });
-      add('text', { x: 644, y: y(30) + 12, 'font-family': 'Inter', 'font-size': 9, 'font-weight': 500, fill: '#61C9A0' }, 'target band');
-      [35, 30, 25, 20, 15].forEach(function (v) {
-        add('line', { x1: 72, y1: y(v), x2: 704, y2: y(v), stroke: '#EEF3F0' });
-        add('text', { x: 30, y: y(v) + 4, 'font-family': 'Inter', 'font-size': 10, 'font-weight': 500, fill: '#A9B8B1' }, v + ' %');
-      });
+      var font = { 'font-family': 'Inter', 'font-size': 10, 'font-weight': 500, fill: '#A9B8B1' };
+      function text(x, y, s, anchor) { return add('text', Object.assign({ x: x, y: y, 'text-anchor': anchor || 'start' }, font), s); }
+
+      // the value axis fits the data (and the target band), with a little room above and below
+      var values = [];
+      data.series.forEach(function (s) { s.points.forEach(function (p) { values.push(p.v); }); });
+      if (data.bandMin !== null) values.push(data.bandMin, data.bandMax);
+      var lo = Math.min.apply(null, values), hi = Math.max.apply(null, values);
+      if (!values.length) { lo = 0; hi = 1; }
+      if (hi - lo < 1e-9) { lo -= 1; hi += 1; }
+      var pad = (hi - lo) * 0.1; lo -= pad; hi += pad;
+      var x = function (t) { return L + (t - data.from) / (data.to - data.from) * (R - L); };
+      var y = function (v) { return B - (v - lo) / (hi - lo) * (B - T); };
+
+      if (data.bandMin !== null) {
+        add('rect', { x: L, y: y(data.bandMax), width: R - L, height: y(data.bandMin) - y(data.bandMax), fill: 'rgba(97,201,160,.10)' });
+        add('text', { x: R - 60, y: y(data.bandMax) + 12, 'font-family': 'Inter', 'font-size': 9, 'font-weight': 500, fill: '#61C9A0' }, 'target band');
+      }
+      for (var i = 0; i <= 4; i++) {
+        var v = lo + (hi - lo) * i / 4;
+        add('line', { x1: L, y1: y(v), x2: R, y2: y(v), stroke: '#EEF3F0' });
+        text(L - 8, y(v) + 4, v.toFixed(data.decimals) + (data.unit === 'pH' ? '' : ' ' + data.unit), 'end');
+      }
+      data.labels.forEach(function (lb, i) { text(x(lb.t), 206, lb.text, i === 0 ? 'start' : i === data.labels.length - 1 ? 'end' : 'middle'); });
+
       data.series.forEach(function (s) {
-        var pts = s.values.map(function (v, i) { return (72 + i * 52.67).toFixed(1) + ',' + y(v).toFixed(1); }).join(' ');
-        add('polyline', { points: pts, fill: 'none', stroke: s.colour, 'stroke-width': 2.5, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
-        add('circle', { cx: 704, cy: y(s.values[s.values.length - 1]).toFixed(1), r: 5, fill: '#fff', stroke: s.colour, 'stroke-width': 3 });
+        var pts = s.points.map(function (p) { return x(p.t).toFixed(1) + ',' + y(p.v).toFixed(1); }).join(' ');
+        add('polyline', { points: pts, fill: 'none', stroke: s.colour, 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' });
+        var last = s.points[s.points.length - 1];
+        add('circle', { cx: x(last.t).toFixed(1), cy: y(last.v).toFixed(1), r: 4.5, fill: '#fff', stroke: s.colour, 'stroke-width': 3 });
       });
-      data.labels.forEach(function (lb, i) { add('text', { x: 68 + i * 90, y: 212, 'font-family': 'Inter', 'font-size': 10, 'font-weight': 500, fill: '#A9B8B1' }, lb); });
+      if (!data.series.length) text((L + R) / 2, (T + B) / 2, 'No readings in this period', 'middle');
+
       var legend = $('#chartLegend'); legend.textContent = '';
       data.series.forEach(function (s) {
-        legend.appendChild(el('span', { style: 'display:flex;align-items:center;gap:6px' }, [el('s', { style: 'width:12px;height:3px;border-radius:2px;background:' + s.colour + ';display:block' }), document.createTextNode(s.name)]));
+        var last = s.points[s.points.length - 1];
+        legend.appendChild(el('span', { style: 'display:flex;align-items:center;gap:6px' }, [el('s', { style: 'width:12px;height:3px;border-radius:2px;background:' + s.colour + ';display:block' }),
+          document.createTextNode(s.name + '  ' + last.v.toFixed(data.decimals) + (data.unit === 'pH' ? '' : ' ' + data.unit))]));
       });
       $('#chartCaption').textContent = data.caption;
     }
-    function load() { fetch('/Dashboard/MoistureChart?range=' + encodeURIComponent(sel.value), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(draw); }
-    sel.addEventListener('change', load);
-    load();
+    var card = $('#trendSvg').closest('.chart');
+    // quiet = the automatic 10-second reload: no loading skeleton, the new line simply replaces the old one
+    function load(quiet) {
+      clearTimeout(timer);
+      if (!quiet) { $('#trendSvg').textContent = ''; card.classList.add('loading'); }
+      var url = '/Dashboard/Trend?range=' + encodeURIComponent(rangeSel.value) + '&parameter=' + encodeURIComponent(paramSel.value);
+      fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (data) {
+        card.classList.remove('loading');
+        draw(data);
+        if (data.live) timer = setTimeout(function () { load(true); }, 10000);   // "Last 15 minutes": fetch the newest readings again in 10 seconds
+      }).catch(function () { card.classList.remove('loading'); });
+    }
+    rangeSel.addEventListener('change', function () { load(false); });
+    paramSel.addEventListener('change', function () { load(false); });
+    load(false);
   }
 
   /* ---------- Alerts: note dialog and view note ---------- */
@@ -172,6 +209,33 @@
       document.getElementById('notifForm').submit();
     });
   });
+
+
+    /* ---------- Live parts of a page: blocks marked data-live are fetched again in the background and swapped in ---------- */
+  // data-live-every says how often, in seconds. One fetch of the same page serves every block with the same interval.
+  (function () {
+    var groups = {};
+    $all('[data-live]').forEach(function (b) { var s = +b.getAttribute('data-live-every') || 10; (groups[s] = groups[s] || []).push(b); });
+    Object.keys(groups).forEach(function (s) {
+      setInterval(function () {
+        if (document.hidden || $('.modal.open')) return;   // not while the tab is hidden or a dialog is open
+        fetch(location.href, { credentials: 'same-origin' })
+          .then(function (r) { return r.ok && !r.redirected ? r.text() : null; })   // signed out: leave the page as it is
+          .then(function (html) {
+            if (!html) return;
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            groups[s].forEach(function (b) {
+              var fresh = doc.querySelector('[data-live="' + b.getAttribute('data-live') + '"]');
+              if (fresh) b.innerHTML = fresh.innerHTML;
+            });
+          })
+          .catch(function () { });                          // offline for a moment: try again next time
+      }, s * 1000);
+    });
+  })();
+  // the bell's unread dot and list, every 15 seconds on every page
+  if (bellBtn) setInterval(function () { if (!document.hidden) loadBell(); }, 15000);
+
   /* ---------- Password fields: the eye button shows or hides what was typed ---------- */
   $all('[data-show-password]').forEach(function (b) {
     b.addEventListener('click', function () {

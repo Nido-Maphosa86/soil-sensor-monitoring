@@ -13,7 +13,7 @@ public abstract class AppController : Controller
     protected UserContext Me => User.ToContext();
 }
 
-/// <summary>W2 Dashboard and the data for its moisture chart.</summary>
+/// <summary>W2 Dashboard and the data for its trend chart.</summary>
 public class DashboardController : AppController
 {
     private readonly IDashboardService _dashboard;
@@ -22,9 +22,9 @@ public class DashboardController : AppController
 
     public async Task<IActionResult> Index() => View(await _dashboard.GetAsync(Me));
 
-    /// <summary>JSON used by the chart to switch between 24 hours, 7 days and 30 days without reloading the page.</summary>
+    /// <summary>JSON used by the trend chart to switch range (last 15 minutes, 24 hours, 7 days, 30 days) and value without reloading the page.</summary>
     [HttpGet]
-    public async Task<IActionResult> MoistureChart(string? range) => Json(await _dashboard.GetMoistureChartAsync(Me, range));
+    public async Task<IActionResult> Trend(string? range, string? parameter) => Json(await _dashboard.GetTrendChartAsync(Me, range, parameter));
 }
 
 /// <summary>W3 Sites and W4 Site detail.</summary>

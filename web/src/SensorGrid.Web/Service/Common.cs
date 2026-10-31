@@ -68,7 +68,7 @@ public static class ParameterCatalog
     public static readonly IReadOnlyList<Info> Readings = new List<Info>
     {
         new(MeasuredParameter.Moisture, "Soil moisture", "Moisture", "%", 1, "#2F80C2", 20.0, 30.0),
-        new(MeasuredParameter.Temperature, "Soil temperature", "Temperature", "°C", 1, "#C2612F", 15.0, 28.0),
+        new(MeasuredParameter.Temperature, "Temperature", "Temperature", "°C", 1, "#C2612F", 15.0, 28.0),
         new(MeasuredParameter.Ph, "pH level", "pH", "pH", 1, "#61C9A0", 6.0, 7.5),
         new(MeasuredParameter.Conductivity, "Conductivity", "Conductivity", "µS/cm", 0, "#6C55C4", 300, 600),
         new(MeasuredParameter.Nitrogen, "Nitrogen (N)", "Nitrogen", "mg/kg", 0, "#2F80C2", 100, 160),

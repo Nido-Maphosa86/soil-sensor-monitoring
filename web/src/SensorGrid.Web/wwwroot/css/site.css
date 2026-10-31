@@ -146,11 +146,24 @@ tbody tr:last-child td{border-bottom:none}
 .kpi.wide .ks{grid-column:auto;text-align:right;max-width:140px;margin:0}
 .legend{display:flex;gap:6px 20px;flex-wrap:wrap;font-size:11px;font-weight:500;color:var(--tx2)}
 .chart svg{width:100%;height:auto;display:block}
+/* loading skeleton of the trend chart: a soft moving shimmer while the readings are fetched (site.js adds and removes .loading) */
+.chart.loading svg{border-radius:12px;background:linear-gradient(90deg,#eef3f0 25%,#f7faf8 50%,#eef3f0 75%);background-size:200% 100%;animation:skeleton 1.2s linear infinite}
+.chart.loading .legend{visibility:hidden}
+@keyframes skeleton{from{background-position:200% 0}to{background-position:-200% 0}}
 .sitebox{display:block;border-radius:13px;background:#F7FAF8;padding:14px 16px}
 .sitebox .top{display:flex;align-items:flex-start;gap:10px}
 .track{height:6px;border-radius:3px;background:#E4EBE7;margin-top:12px;overflow:hidden}
 .track i{display:block;height:6px;border-radius:3px}
 .rng{position:relative;margin-top:14px}
+/* round gauges of the site detail page (views/sites/_gauge.cshtml) */
+.gauge{padding:18px 20px 16px;display:flex;flex-direction:column;align-items:center}
+.gauge .ghead{align-self:stretch;display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--tx2)}
+.gauge .ghead s{width:20px;height:4px;border-radius:2px;display:block}
+.gauge .ring{width:150px;height:150px;margin-top:6px}
+.gauge .gv{font-size:28px;font-weight:700;fill:var(--tx);font-family:inter,sans-serif}
+.gauge .gu{font-size:11px;font-weight:500;fill:var(--tx3);font-family:inter,sans-serif}
+.gauge .gstat{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:-4px}
+.gauge .gband{font-size:10px;color:var(--tx3)}
 .feed{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--line2);flex-wrap:wrap}
 .feed:last-child{border-bottom:none}
 .togrow{display:flex;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line2)}

@@ -1,4 +1,4 @@
-@* W2 Dashboard: four counters, the moisture chart (24 hours / 7 days / 30 days), site status and the latest readings. *@
+@* W2 Dashboard: four counters, the trend chart (last 15 minutes / 24 hours / 7 days / 30 days, any value), site status and the latest readings. *@
 @model DashboardDto
 @{
     ViewData["Title"] = "Dashboard";
@@ -10,11 +10,12 @@
 @section Right {
   <form method="get" asp-controller="Sensors" asp-action="Index" class="searchbox"><i></i><input name="search" placeholder="Search sensors" maxlength="60" /></form>
   <div class="selectbox"><span data-select-label>Last 24 hours</span>&nbsp;&nbsp;▾
-    <select id="rangeSel" aria-label="Chart range"><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option></select></div>
+    <select id="rangeSel" aria-label="Chart range"><option value="15m">Last 15 minutes (live)</option><option value="24h" selected>Last 24 hours</option><option value="7d">Last 7 days</option><option value="30d">Last 30 days</option></select></div>
   <a class="btn" id="exportBtn" asp-controller="Readings" asp-action="Export" asp-route-range="24h">Export CSV</a>
 }
 
-<div class="grid g4">
+@* data-live: these blocks are fetched again every 60 seconds and swapped in (see site.js). Not more often, because the counters read the whole day's readings. *@
+<div class="grid g4" data-live="kpis" data-live-every="60">
   @foreach (var k in Model.Kpis)
   {
     <div class="card kpi">
@@ -28,17 +29,19 @@
 <div class="grid g21">
   <div class="card chart">
     <div class="cardhead" style="margin-bottom:8px">
-      <div><div class="h3">Soil moisture across all provinces</div>
-      <div class="cap" id="chartCaption" style="margin-top:4px">Average moisture of each province's sensors over the last 24 hours</div></div>
-      <div id="chartLegend" class="legend push"></div>
+      <div><div class="h3">Province trend</div>
+      <div class="cap" id="chartCaption" style="margin-top:4px">Soil moisture of each province over the last 24 hours</div></div>
+      <div class="selectbox push" style="height:34px"><span data-select-label>Soil moisture</span>&nbsp;&nbsp;▾
+        <select id="paramSel" aria-label="Value shown">@foreach (var i in ParameterCatalog.Readings){<option value="@i.Parameter">@i.Label</option>}</select></div>
     </div>
-    <svg id="moistureSvg" viewBox="0 0 736 220" role="img" aria-label="Soil moisture chart"></svg>
+    <div id="chartLegend" class="legend" style="margin-bottom:6px"></div>
+    <svg id="trendSvg" viewBox="0 0 736 220" role="img" aria-label="Province trend chart"></svg>
   </div>
 
   <div class="card">
     <div class="cardhead"><div class="h3">Site status</div>
       <a asp-controller="Sites" asp-action="Index" class="push" style="font-size:12px;font-weight:600;color:var(--brand)">Manage</a></div>
-    <div class="stack" style="gap:12px">
+    <div class="stack" style="gap:12px" data-live="sites" data-live-every="60">
     @foreach (var s in Model.Sites)
     {
       <a class="sitebox" asp-controller="Sites" asp-action="Details" asp-route-id="@s.SiteId">
@@ -54,7 +57,7 @@
   </div>
 </div>
 
-<div class="card">
+<div class="card" data-live="latest" data-live-every="60">
   <div class="cardhead">
     <div class="h3">Latest readings</div>
     <div class="cap">@Model.ReadingsCaption</div>
