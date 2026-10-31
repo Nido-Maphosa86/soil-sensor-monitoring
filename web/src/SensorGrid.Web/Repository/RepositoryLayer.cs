@@ -37,7 +37,9 @@ public static class RepositoryLayer
         // ------------------------------------------------------------------
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(30) });
         services.AddSingleton<IAccessTokenProvider, GoogleAccessTokenProvider>();
-        services.AddSingleton<IRealtimeDatabaseStore, FirebaseRealtimeDatabaseStore>();
+        services.AddSingleton<FirebaseRealtimeDatabaseStore>();
+        // every repository reads through a short memory of recent answers (see CachingRealtimeDatabaseStore.cs), so pages make far fewer Firebase calls
+        services.AddSingleton<IRealtimeDatabaseStore>(sp => new CachingRealtimeDatabaseStore(sp.GetRequiredService<FirebaseRealtimeDatabaseStore>()));
         services.AddSingleton<IAuthGateway, FirebaseAuthGateway>();
         // Cloud Storage needs the Blaze plan (open decision 22.7.4). Until then report files stay on the web server.
         if (settings.UseCloudStorageForReports) services.AddSingleton<IReportFileStore, CloudStorageReportFileStore>();

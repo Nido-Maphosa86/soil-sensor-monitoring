@@ -263,15 +263,16 @@ public sealed class AlertRepository : IAlertRepository
     public async Task<IReadOnlyList<Alert>> GetAllAsync(IEnumerable<string>? locationIds = null, CancellationToken ct = default)
     {
         var ids = locationIds?.ToList() ?? ((await _store.GetAsync("locations", ct)) as JsonObject)?.Select(kv => kv.Key).ToList() ?? new List<string>();
-        var list = new List<Alert>();
-        foreach (var loc in ids)
+        // every province's alerts and alert actions are asked for at the same time, instead of one after another
+        var perProvince = await Task.WhenAll(ids.Select(async loc =>
         {
-            var alerts = await _store.GetAsync($"alerts/{loc}", ct) as JsonObject;
-            if (alerts is null) continue;
-            var actions = await _store.GetAsync($"alert_actions/{loc}", ct) as JsonObject;
-            foreach (var (id, node) in alerts) list.Add(Map(loc, id, node, actions?[id] as JsonObject));
-        }
-        return list;
+            var alertsTask = _store.GetAsync($"alerts/{loc}", ct);
+            var actionsTask = _store.GetAsync($"alert_actions/{loc}", ct);
+            var alerts = await alertsTask as JsonObject;
+            var actions = await actionsTask as JsonObject;
+            return alerts is null ? new List<Alert>() : alerts.Select(kv => Map(loc, kv.Key, kv.Value, actions?[kv.Key] as JsonObject)).ToList();
+        }));
+        return perProvince.SelectMany(x => x).ToList();
     }
 
     public async Task<Alert?> GetAsync(string locationId, string alertId, CancellationToken ct = default)

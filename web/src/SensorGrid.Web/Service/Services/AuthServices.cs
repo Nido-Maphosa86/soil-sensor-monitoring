@@ -116,11 +116,14 @@ public sealed class ShellService : IShellService
 
     public async Task<ShellDto> GetAsync(UserContext ctx)
     {
-        var user = await _users.GetAsync(ctx.UserId);
+        // the account, the notifications and the alerts do not depend on each other, so they are asked for at the same time
+        var userTask = _users.GetAsync(ctx.UserId);
+        var notificationsTask = _notifications.ForUserAsync(ctx.UserId);
         var sites = (await _scope.VisibleSitesAsync(ctx)).Select(s => s.SiteId).ToList();
         var alerts = await _alerts.GetAllAsync(sites);
+        var user = await userTask;
         var visibleAlertIds = alerts.Select(a => a.AlertId).ToHashSet();
-        var unread = (await _notifications.ForUserAsync(ctx.UserId)).Count(n => !n.IsRead && visibleAlertIds.Contains(n.AlertId));
+        var unread = (await notificationsTask).Count(n => !n.IsRead && visibleAlertIds.Contains(n.AlertId));
         var name = user?.Name ?? ctx.Name;
         return new ShellDto(ctx.UserId, name, Display.Initials(name), user?.Email ?? "", Display.RoleLabel(ctx.Role), ctx.IsAdmin,
             alerts.Count(a => a.Status == AlertStatus.Open), unread);

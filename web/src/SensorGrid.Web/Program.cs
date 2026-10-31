@@ -93,6 +93,14 @@ app.Use(async (context, next) =>
 
 app.UseStaticFiles();
 
+// How long each page took (shown while developing, together with each Firebase call, to find slow pages).
+app.Use(async (context, next) =>
+{
+    var watch = System.Diagnostics.Stopwatch.StartNew();
+    await next();
+    app.Logger.LogDebug("{Method} {Path} answered in {Ms} ms", context.Request.Method, context.Request.Path, watch.ElapsedMilliseconds);
+});
+
 // Not connected yet: every address shows the waiting page (styles and scripts above are still served).
 if (!connected)
 {

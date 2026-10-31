@@ -2,9 +2,11 @@
 // How it fits in: Repository folder. It is the only class that knows about HTTP and the addresses of the database.
 // CONNECT FIREBASE HERE: it needs SensorGrid:Firebase:DatabaseUrl and the access token provider. The web server's token skips Firebase Security Rules,
 // so the Service layer checks the role and the assigned provinces before every read and write.
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.Logging;
 
 namespace SensorGrid.Repository;
 
@@ -15,10 +17,12 @@ public sealed class FirebaseRealtimeDatabaseStore : IRealtimeDatabaseStore
     private readonly string _databaseUrl;
     private readonly string _baseQuery; // "ns=project" when the emulator is used, otherwise empty
     private readonly IAccessTokenProvider _tokens;
+    private readonly ILogger<FirebaseRealtimeDatabaseStore> _log;
 
-    public FirebaseRealtimeDatabaseStore(HttpClient http, FirebaseSettings settings, IAccessTokenProvider tokens)
+    public FirebaseRealtimeDatabaseStore(HttpClient http, FirebaseSettings settings, IAccessTokenProvider tokens, ILogger<FirebaseRealtimeDatabaseStore> log)
     {
         _http = http;
+        _log = log;
         // The emulator address carries the database name as a query: http://127.0.0.1:9000/?ns=sensorgrid-dev
         var parts = settings.DatabaseUrl.Trim().Split('?', 2);
         _databaseUrl = parts[0].TrimEnd('/');                         // the address without a trailing slash
@@ -75,6 +79,7 @@ public sealed class FirebaseRealtimeDatabaseStore : IRealtimeDatabaseStore
     private async Task<string> SendAsync(HttpMethod method, string path, string extraQuery, string? jsonBody, CancellationToken ct)
     {
         var clean = (path ?? "").Trim('/'); // "alerts/GP/" becomes "alerts/GP"
+        var watch = Stopwatch.StartNew();
         try
         {
             var token = await _tokens.GetAccessTokenAsync(ct);
@@ -88,6 +93,8 @@ public sealed class FirebaseRealtimeDatabaseStore : IRealtimeDatabaseStore
             var text = await response.Content.ReadAsStringAsync(ct);
             if (!response.IsSuccessStatusCode)
                 throw new RealtimeDatabaseException($"Firebase {method} /{clean} failed ({(int)response.StatusCode}): {text}");
+            // how long each call took and how much came back (shown while developing, to find what makes a page slow)
+            _log.LogDebug("Firebase {Method} /{Path}: {Ms} ms, {Kb} KB", method, clean, watch.ElapsedMilliseconds, text.Length / 1024);
             return text;
         }
         catch (RealtimeDatabaseException)
