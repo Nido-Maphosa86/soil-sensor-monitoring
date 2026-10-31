@@ -44,7 +44,7 @@ public enum AlertStatus
 public enum MeasuredParameter
 {
     Moisture,     // soil moisture, %
-    Temperature,  // soil temperature, °C
+    Temperature,  // temperature, °C
     Ph,           // pH level
     Conductivity, // electrical conductivity, µS/cm
     Nitrogen,     // N, mg/kg

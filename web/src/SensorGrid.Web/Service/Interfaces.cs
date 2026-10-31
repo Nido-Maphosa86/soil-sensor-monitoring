@@ -32,7 +32,8 @@ public interface IShellService
 public interface IDashboardService
 {
     Task<DashboardDto> GetAsync(UserContext ctx);
-    Task<MoistureChartDto> GetMoistureChartAsync(UserContext ctx, string? range);
+    /// <summary>One value (moisture by default) of every province the person may see, over 15m, 24h, 7d or 30d.</summary>
+    Task<TrendChartDto> GetTrendChartAsync(UserContext ctx, string? range, string? parameter);
 }
 
 public interface ISiteService

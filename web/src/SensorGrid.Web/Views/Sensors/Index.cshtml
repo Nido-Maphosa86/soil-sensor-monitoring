@@ -31,7 +31,8 @@
   }
 </div>
 <div class="card">
-  <div class="tablewrap">
+  @* data-live: the table is fetched again every 10 seconds, so online and offline change by themselves (see site.js). *@
+  <div class="tablewrap" data-live="sensors" data-live-every="10">
     <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
     <tbody>
     @foreach (var r in Model.Rows)

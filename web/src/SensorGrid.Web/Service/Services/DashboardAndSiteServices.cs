@@ -105,49 +105,55 @@ public sealed class DashboardService : IDashboardService
         return ($"{ParameterCatalog.Get(breach.Parameter).Short} {(breach.Above ? "high" : "low")}", tone);
     }
 
-    public async Task<MoistureChartDto> GetMoistureChartAsync(UserContext ctx, string? range)
+    public async Task<TrendChartDto> GetTrendChartAsync(UserContext ctx, string? range, string? parameter)
     {
-        var clock = _clock.UtcNow;
-        // end on the last half-hour slot, so the axis labels read 14:30 and not 14:32
-        var now = new DateTime(clock.Year, clock.Month, clock.Day, clock.Hour, clock.Minute < 30 ? 0 : 30, 0, DateTimeKind.Utc);
-        var (window, caption, labelFormat) = range switch
+        var now = _clock.UtcNow;
+        var p = Enum.TryParse<MeasuredParameter>(parameter, true, out var chosen) ? chosen : MeasuredParameter.Moisture;
+        var info = ParameterCatalog.Get(p);
+        // how far back, how long one point is (the average of every reading of the province in it) and how the time labels look
+        var (window, step, caption, labelFormat) = range switch
         {
-            "7d" => (TimeSpan.FromDays(7), "last 7 days", "d MMM"),
-            "30d" => (TimeSpan.FromDays(30), "last 30 days", "d MMM"),
-            _ => (TimeSpan.FromHours(24), "last 24 hours", "HH:mm")
+            "15m" => (TimeSpan.FromMinutes(15), TimeSpan.FromSeconds(10), "the last 15 minutes, one point per 10 seconds", "HH:mm"),
+            "7d" => (TimeSpan.FromDays(7), TimeSpan.FromHours(1), "the last 7 days, one point per hour", "d MMM"),
+            "30d" => (TimeSpan.FromDays(30), TimeSpan.FromHours(6), "the last 30 days, one point per 6 hours", "d MMM"),
+            _ => (TimeSpan.FromHours(24), TimeSpan.FromMinutes(5), "the last 24 hours, one point per 5 minutes", "HH:mm")
         };
-        const int points = 13;
-        var step = window / (points - 1);
-        var start = now - window;
-        var half = step / 2;
-
+        var from = now - window;
         var sites = await _scope.VisibleSitesAsync(ctx);
         var sensors = (await _scope.VisibleSensorsAsync(ctx)).Where(s => s.IsActive).ToList();
-        var readings = (await _lookup.ReadingsAsync(sensors, start - half, now)).Values.SelectMany(x => x).ToList();
+        var readings = (await _lookup.ReadingsAsync(sensors, from, now)).Values.SelectMany(x => x)
+            .Where(r => !ReadingRule.IsEmpty(r)) // a row of zeros means the probe is not reading the soil, so it is left out of the line
+            .ToList();
 
-        var series = new List<ChartSeriesDto>();
+        var series = new List<TrendSeriesDto>();
         for (var si = 0; si < sites.Count; si++)
         {
-            var site = sites[si];
-            var mine = readings.Where(r => r.SiteId == site.SiteId).ToList();
-            var values = new double[points];
-            double? previous = null;
-            for (var i = 0; i < points; i++)
-            {
-                var centre = start + step * i;
-                var bucket = mine.Where(r => r.Timestamp >= centre - half && r.Timestamp < centre + half).ToList();
-                if (bucket.Count > 0) previous = bucket.Average(r => r.Moisture);
-                values[i] = Math.Round(previous ?? 0, 1);
-            }
-            // leading gap: copy the first real value backwards so the line starts at a real number
-            var first = values.FirstOrDefault(v => v > 0);
-            for (var i = 0; i < points && values[i] == 0; i++) values[i] = first;
-            series.Add(new ChartSeriesDto(site.SiteId, site.Name, ProvinceColours[si % ProvinceColours.Length], values));
+            var mine = readings.Where(r => r.SiteId == sites[si].SiteId).ToList();
+            if (mine.Count == 0) continue;
+            // one point per step: the average of every reading of every sensor of the province in it, drawn in the middle of the step
+            var points = mine.GroupBy(r => r.Timestamp.Ticks / step.Ticks).OrderBy(g => g.Key)
+                .Select(g => new TrendPointDto(Ms(new DateTime(g.Key * step.Ticks + step.Ticks / 2, DateTimeKind.Utc)), Math.Round(g.Average(r => r.ValueOf(p)), info.Decimals)))
+                .ToList();
+            series.Add(new TrendSeriesDto(sites[si].Name, ProvinceColours[si % ProvinceColours.Length], points));
         }
 
-        var labels = Enumerable.Range(0, 8).Select(i => Display.Local(start + (window / 7) * i).ToString(labelFormat, Display.Culture)).ToList();
-        return new MoistureChartDto(labels, series, $"Average moisture of each province's sensors over the {caption}");
+        // the target band is drawn only when one province is shown, because provinces can have different bands
+        double? bandMin = null, bandMax = null;
+        var siteIds = sensors.Select(s => s.SiteId).Distinct().ToList();
+        if (siteIds.Count == 1 && (await _analytics.BandsForAsync(siteIds[0])).TryGetValue(p, out var band))
+        {
+            bandMin = band.MinValue;
+            bandMax = band.MaxValue;
+        }
+
+        var labels = Enumerable.Range(0, 5).Select(i => from + window / 4 * i)
+            .Select(t => new TrendLabelDto(Ms(t), Display.Local(t).ToString(labelFormat, Display.Culture))).ToList();
+        return new TrendChartDto($"{info.Label} of each province over {caption}", info.Unit, info.Decimals, Ms(from), Ms(now),
+            bandMin, bandMax, labels, series, Live: range == "15m");
     }
+
+    /// <summary>A UTC time as milliseconds since 1970, which is what the browser's chart uses.</summary>
+    private static long Ms(DateTime utc) => new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
 }
 
 public sealed class SiteService : ISiteService
@@ -229,9 +235,10 @@ public sealed class SiteService : ISiteService
             var breach = BreachRule.IsBreach(value, band);
             if (breach) outside++;
             var label = !breach ? "Optimal" : value > band.MaxValue ? "High" : "Low";
-            // the marker sits on a bar where the target band covers 18% to 76% of the width
+            // the marker sits on a gauge where the target band covers 18% to 76% of the ring
             var position = (int)Math.Round(Math.Clamp(18 + 58 * (value - band.MinValue) / (band.MaxValue - band.MinValue), 2, 96));
-            cards.Add(new ParamCardDto(info.Label, Display.Value(info.Parameter, value), info.Unit, label, breach ? Tone.Bad : Tone.Ok, info.Colour, position));
+            var target = $"Target {Display.Value(info.Parameter, band.MinValue)} – {Display.Value(info.Parameter, band.MaxValue)}";
+            cards.Add(new ParamCardDto(info.Label, Display.Value(info.Parameter, value), info.Unit, label, breach ? Tone.Bad : Tone.Ok, info.Colour, position, target));
         }
 
         var newest = statuses.Values.Where(s => s is not null).Select(s => s!.LastCommunication).DefaultIfEmpty().Max();

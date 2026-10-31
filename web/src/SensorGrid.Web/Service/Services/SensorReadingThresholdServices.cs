@@ -165,7 +165,7 @@ public sealed class ReadingService : IReadingService
     public ReadingFilter FilterForRange(string? range, string? siteId = null)
     {
         var now = Display.Local(_clock.UtcNow);
-        return new(now - (range == "30d" ? TimeSpan.FromDays(30) : range == "7d" ? TimeSpan.FromDays(7) : TimeSpan.FromHours(24)), now, siteId, null, 1);
+        return new(now - (range == "30d" ? TimeSpan.FromDays(30) : range == "7d" ? TimeSpan.FromDays(7) : range == "15m" ? TimeSpan.FromMinutes(15) : TimeSpan.FromHours(24)), now, siteId, null, 1);
     }
 
     public async Task<ReadingsPageDto> GetPageAsync(UserContext ctx, ReadingFilter filter)
