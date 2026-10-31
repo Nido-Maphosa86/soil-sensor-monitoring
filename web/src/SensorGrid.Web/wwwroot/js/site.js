@@ -78,7 +78,7 @@
       if (ctl.hasAttribute('data-autosubmit') && ctl.form) ctl.form.submit();
     });
     // the date box is invisible, and a click in its middle does not open the calendar by itself, so open it here
-    if (ctl.tagname === 'input' && ctl.showpicker) box.addeventlistener('click', function () { try { ctl.showpicker(); } catch (e) { } });
+        if (ctl.tagname === 'input' && ctl.showpicker) box.addeventlistener('click', function () { try { ctl.showpicker(); } catch (e) { } });
   });
   $all('[data-confirm]').forEach(function (b) { b.addEventListener('click', function (e) { if (!window.confirm(b.getAttribute('data-confirm'))) e.preventDefault(); }); });
   $all('[data-set-value]').forEach(function (b) { b.addEventListener('click', function () { var t = document.getElementById(b.getAttribute('data-set-value')); if (t) t.value = b.getAttribute('data-value'); }); });
