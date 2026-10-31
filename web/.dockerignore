@@ -1,0 +1,11 @@
+# What this file is for: keeps build output, local settings and anything secret out of the container image.
+**/bin/
+**/obj/
+**/*.user
+**/.vs/
+**/App_Data/
+firebase/
+# never copy a Firebase key file into the image, even if one was saved in the folder by mistake
+**/*-admin*.json
+**/*serviceAccount*.json
+**/*service-account*.json
