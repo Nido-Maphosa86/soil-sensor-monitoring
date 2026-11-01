@@ -1,0 +1,97 @@
+@* Edit sensor (administrators only): the same fields as Register sensor (the code and the site cannot change), then Retire or Reactivate,
+   and Delete for a retired sensor. Deleting removes the registration and its alerts; the gateway's readings are kept. *@
+@model SensorEditPageModel
+@{
+    var p = Model.Page;
+    var f = p.Form;
+    var errors = Model.Result?.Errors ?? new Dictionary<string, string>();
+    var conflict = Model.Result?.Conflict;
+    ViewData["Title"] = "Edit " + f.SensorId;
+    ViewData["Nav"] = "Sensors";
+    ViewData["Heading"] = "Edit sensor " + f.SensorId;
+    ViewData["Sub"] = p.SiteName + " · " + (p.IsActive ? "last reading " + p.LastReading : "retired");
+    string Err(string key) => errors.ContainsKey(key) ? " err" : "";
+}
+@section Right {
+  <a class="btn ghost" asp-action="Index" asp-route-site="@f.SiteId">Back to sensors</a>
+  <button class="btn" type="submit" form="editForm">Save changes</button>
+}
+<div class="cap">Sensors &nbsp;›&nbsp; @f.SensorId</div>
+<div class="grid g21" style="align-items:start">
+<form id="editForm" method="post" asp-action="Edit" asp-route-id="@f.SensorId">
+<div class="card" style="padding:28px 30px">
+  <div class="h3">Sensor details</div>
+  <div class="cap" style="margin-top:5px;margin-bottom:24px">The code and the site stay as registered, because the gateway sends its readings under the code.</div>
+  <div class="fgrid">
+    <div class="field"><label for="SensorId">SENSOR CODE</label>
+      <div class="inp"><input id="SensorId" value="@f.SensorId" readonly /></div><div class="hint">Cannot be changed</div></div>
+    <div class="field"><label for="Site">SITE</label>
+      <div class="inp"><input id="Site" value="@p.SiteName" readonly /></div></div>
+    <div class="field@(Err("InstalledDate"))"><label for="InstalledDate">INSTALLATION DATE</label>
+      <div class="inp"><input id="InstalledDate" name="InstalledDate" type="date" value="@f.InstalledDate?.ToString("yyyy-MM-dd")" required /></div>
+      @if (errors.TryGetValue("InstalledDate", out var e2)){<div class="hint">@e2</div>}</div>
+    <div class="field@(Err("DepthCm"))"><label for="DepthCm">DEPTH BELOW SURFACE</label>
+      <div class="inp"><input id="DepthCm" name="DepthCm" type="number" min="1" max="200" value="@f.DepthCm" required /></div>
+      @if (errors.TryGetValue("DepthCm", out var e3)){<div class="hint">@e3</div>}else{<div class="hint">Centimetres. Keep consistent across a site.</div>}</div>
+    <div class="field@(Err("ModbusSlaveId"))"><label for="ModbusSlaveId">MODBUS SLAVE ID</label>
+      <div class="inp"><input id="ModbusSlaveId" name="ModbusSlaveId" type="number" min="1" max="247" value="@f.ModbusSlaveId" required /></div>
+      @if (errors.TryGetValue("ModbusSlaveId", out var e4)){<div class="hint">@e4</div>}else{<div class="hint">Must be unique on the RS485 bus at this site</div>}</div>
+  </div>
+  <div style="height:1px;background:var(--line2);margin-top:26px"></div>
+  <div style="margin-top:22px">
+    @* an unticked box sends nothing, so the hidden field after it sends "false" *@
+    <label class="checkrow"><input type="checkbox" name="IncludeInAverage" value="true" checked="@f.IncludeInAverage" /> Include this sensor in the site average</label>
+    <input type="hidden" name="IncludeInAverage" value="false" /></div>
+</div>
+</form>
+
+<div class="stack">
+  @if (conflict is not null)
+  {
+    <div class="card" style="padding:24px 26px;border-left:3px solid #B87A15">
+      <div style="font-size:13px;font-weight:700;color:#B87A15">Slave ID already in use</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.55;margin-top:9px">Sensor @conflict.SensorId in this province is already using Modbus slave ID @conflict.SlaveId. Two devices sharing an ID on the same bus will collide and neither will report.</div>
+      <button type="button" class="btn ghost sm" style="margin-top:14px" data-set-value="ModbusSlaveId" data-value="@conflict.NextFree">Use the next free ID (@conflict.NextFree)</button></div>
+  }
+  @if (p.IsActive)
+  {
+    <div class="card" style="padding:24px 26px">
+      <div class="h3">Retire sensor</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.55;margin-top:10px">For a probe taken out of the field. It stops counting in the averages, raises no more alerts and disappears from the mobile app.
+        @(p.OpenAlerts > 0 ? $"Its {p.OpenAlerts} open {(p.OpenAlerts == 1 ? "alert is" : "alerts are")} resolved with a note." : "") Its readings are kept, and you can reactivate it at any time.</div>
+      <form method="post" asp-action="Retire" asp-route-id="@f.SensorId" style="margin-top:16px">
+        <button type="submit" class="btn ghost sm" data-confirm="Retire @f.SensorId? It stops counting and raises no more alerts. You can reactivate it later.">Retire sensor</button></form>
+    </div>
+  }
+  else
+  {
+    <div class="card" style="padding:24px 26px">
+      <div class="h3">Retired</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.55;margin-top:10px">This sensor does not count in the averages and raises no alerts. Reactivate it if the probe is back in the field.</div>
+      <form method="post" asp-action="Reactivate" asp-route-id="@f.SensorId" style="margin-top:16px"><button type="submit" class="btn ghost sm">Reactivate sensor</button></form>
+    </div>
+    <div class="card" style="padding:24px 26px;border-left:3px solid var(--crit)">
+      <div style="font-size:13px;font-weight:700;color:var(--crit)">Delete sensor</div>
+      <div style="font-size:12px;color:var(--tx2);line-height:1.55;margin-top:9px">Removes the registration and its @p.AlertCount @(p.AlertCount == 1 ? "alert" : "alerts"). The readings the gateway sent stay in the database. This cannot be undone.</div>
+      <button type="button" class="btn red sm" style="margin-top:14px" data-open="deleteModal">Delete sensor</button>
+    </div>
+  }
+</div>
+</div>
+
+@if (!p.IsActive)
+{
+  <div class="modal" id="deleteModal">
+    <div class="backdrop" data-close></div>
+    <form class="box" method="post" asp-action="Delete" asp-route-id="@f.SensorId" data-ajax>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:16px;font-weight:700">Delete @f.SensorId</div>
+        <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="cap" style="margin-top:4px">The registration and its alerts are removed. The readings stay in the database. This cannot be undone.</div>
+      <div style="margin-top:18px"><label class="lab" for="confirmCode">TYPE @f.SensorId TO CONFIRM</label>
+        <input type="text" id="confirmCode" name="Confirm" required maxlength="5" autocomplete="off" placeholder="@f.SensorId" /></div>
+      <hr />
+      <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn red">Delete sensor</button></div>
+    </form>
+  </div>
+}

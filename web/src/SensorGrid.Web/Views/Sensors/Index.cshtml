@@ -10,7 +10,7 @@
     var search = Context.Request.Query["search"].ToString();
     var state = Context.Request.Query["state"].ToString();
     if (state == "") state = "All statuses";
-    var heads = new[] { "Sensor", "Province", "Installed", "Last reading", "Status" };
+    var heads = shell.IsAdmin ? new[] { "Sensor", "Province", "Installed", "Last reading", "Status", "" } : new[] { "Sensor", "Province", "Installed", "Last reading", "Status" };
 }
 @section Right {
   <form method="get" style="display:contents">
@@ -38,7 +38,8 @@
     @foreach (var r in Model.Rows)
     {
       <tr><td style="font-weight:600;padding-top:16px;padding-bottom:16px">@r.SensorId</td><td class="num">@r.Province</td><td class="num">@r.Installed</td><td class="num">@r.LastReading</td>
-        <td>@Ui.Status(r.StateLabel, r.Tone)</td></tr>
+        <td>@Ui.Status(r.StateLabel, r.Tone)</td>
+        @if (shell.IsAdmin){<td style="text-align:right"><a class="btn ghost sm" asp-action="Edit" asp-route-id="@r.SensorId">Edit</a></td>}</tr>
     }
     </tbody></table>
   </div>

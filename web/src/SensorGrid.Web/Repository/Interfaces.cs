@@ -10,6 +10,12 @@ public interface ILocationRepository
     Task<IReadOnlyList<Site>> GetAllAsync(CancellationToken ct = default);
     Task<Site?> GetAsync(string locationId, CancellationToken ct = default);
     Task SaveAsync(Site site, CancellationToken ct = default);
+
+    /// <summary>
+    /// Deletes a site in ONE update: locations, thresholds, alerts and alert_actions of the site, its location_users, the site in each
+    /// user's user_locations, and the listed notifications (those of the site's alerts). The site must have no sensors left.
+    /// </summary>
+    Task DeleteAsync(string locationId, IEnumerable<string> userIds, IEnumerable<(string UserId, string AlertId)> notifications, CancellationToken ct = default);
 }
 
 /// <summary>users/{uid}, user_locations/{uid}/{loc} and location_users/{loc}/{uid}. The three are always written together in one update.</summary>
@@ -37,6 +43,15 @@ public interface ISensorRepository
     Task<IReadOnlyList<Sensor>> GetAllAsync(CancellationToken ct = default);
     Task<Sensor?> GetAsync(string sensorId, CancellationToken ct = default);
     Task AddAsync(Sensor sensor, CancellationToken ct = default);
+
+    /// <summary>Saves the settings of a registered sensor (edit, retire, reactivate). The code and the site never change.</summary>
+    Task UpdateAsync(Sensor sensor, CancellationToken ct = default);
+
+    /// <summary>
+    /// Deletes a sensor's registration in ONE update: sensors and sensor_locations, the listed alerts of the sensor with their actions, and
+    /// the listed notifications. The readings under readings/{sensor_id} (and daily_stats) are kept.
+    /// </summary>
+    Task DeleteAsync(Sensor sensor, IEnumerable<string> alertIds, IEnumerable<(string UserId, string AlertId)> notifications, CancellationToken ct = default);
 }
 
 /// <summary>When a sensor last reported, from readings/{sensor_id}/latest (written by the gateway).</summary>

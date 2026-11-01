@@ -10,20 +10,27 @@ namespace SensorGrid.Service;
 public sealed class SensorService : ISensorService
 {
     public const int PageSize = 10;
-    public static readonly IReadOnlyList<string> StateFilters = new[] { "All statuses", "Online", "Offline" };
+    public static readonly IReadOnlyList<string> StateFilters = new[] { "All statuses", "Online", "Offline", "Retired" };
+
+    /// <summary>The note written on the open alerts of a sensor when it is retired.</summary>
+    public const string RetiredNote = "Closed automatically: the sensor was retired.";
 
     private readonly DataScope _scope;
     private readonly ISensorRepository _sensors;
     private readonly ILocationRepository _locations;
     private readonly SensorLookup _lookup;
+    private readonly IAlertRepository _alerts;
+    private readonly NotificationLinks _links;
     private readonly IClock _clock;
 
-    public SensorService(DataScope scope, ISensorRepository sensors, ILocationRepository locations, SensorLookup lookup, IClock clock)
+    public SensorService(DataScope scope, ISensorRepository sensors, ILocationRepository locations, SensorLookup lookup, IAlertRepository alerts, NotificationLinks links, IClock clock)
     {
         _scope = scope;
         _sensors = sensors;
         _locations = locations;
         _lookup = lookup;
+        _alerts = alerts;
+        _links = links;
         _clock = clock;
     }
 
@@ -46,9 +53,12 @@ public sealed class SensorService : ISensorService
         page = Math.Clamp(page, 1, pageCount);
         var slice = rows.Skip((page - 1) * PageSize).Take(PageSize).ToList();
 
-        var offline = all.Count(s => OfflineRule.IsOffline(statuses[s.SensorId]?.LastCommunication, now));
+        // retired sensors are listed (so they can be reactivated or deleted) but not counted as offline
+        var offline = all.Count(s => s.IsActive && OfflineRule.IsOffline(statuses[s.SensorId]?.LastCommunication, now));
+        var retired = all.Count(s => !s.IsActive);
         var perSite = sites.Select(s => all.Count(x => x.SiteId == s.SiteId)).Distinct().ToList();
-        var subtitle = $"{all.Count} registered units" + (perSite.Count == 1 && sites.Count > 1 ? $", {perSite[0]} in each province" : "") + (offline > 0 ? $" · {offline} offline" : "");
+        var subtitle = $"{all.Count} registered units" + (perSite.Count == 1 && sites.Count > 1 ? $", {perSite[0]} in each province" : "") +
+                       (offline > 0 ? $" · {offline} offline" : "") + (retired > 0 ? $" · {retired} retired" : "");
         var chips = new List<SensorChipDto> { new(null, sites.Count == 1 ? sites[0].Name : "All sites", all.Count) };
         if (sites.Count > 1) chips.AddRange(sites.Select(s => new SensorChipDto(s.SiteId, s.Name, all.Count(x => x.SiteId == s.SiteId))));
 
@@ -90,6 +100,23 @@ public sealed class SensorService : ISensorService
         else if (site is not null && !SensorCodeRule.BelongsTo(code, site.SiteId)) errors["SensorId"] = $"The code must start with {site.SiteId}- for {site.Name}.";
         else if (sensors.Any(s => s.SensorId == code)) errors["SensorId"] = "A sensor with this code already exists.";
 
+        conflict = CheckDetails(form, site, sensors, null, errors);
+        if (errors.Count > 0) return new RegisterResult(false, errors, conflict);
+
+        await _sensors.AddAsync(new Sensor
+        {
+            SensorId = code, SiteId = site!.SiteId, Name = $"Soil probe {code}", Model = "SG-RS485-7", IsActive = true, IncludeInAverage = form.IncludeInAverage,
+            InstalledDate = form.InstalledDate!.Value.Date, DepthCm = form.DepthCm!.Value, ModbusSlaveId = form.ModbusSlaveId!.Value
+        });
+        return new RegisterResult(true, errors, null);
+    }
+
+    /// <summary>
+    /// The checks shared by Register and Edit: installation date, depth, and a Modbus slave id that is unique within the site.
+    /// self is the sensor being edited, so it does not clash with itself. Returns the clash, if any, for the one-click fix.
+    /// </summary>
+    private SlaveConflict? CheckDetails(RegisterSensorForm form, Site? site, IReadOnlyList<Sensor> sensors, string? self, Dictionary<string, string> errors)
+    {
         if (form.InstalledDate is null) errors["InstalledDate"] = "Enter the installation date.";
         else if (form.InstalledDate.Value.Date > Display.Local(_clock.UtcNow).Date) errors["InstalledDate"] = "The installation date cannot be in the future.";
 
@@ -99,22 +126,80 @@ public sealed class SensorService : ISensorService
         else if (site is not null)
         {
             // a slave id must be unique within a location
-            var clash = sensors.FirstOrDefault(s => s.SiteId == site.SiteId && s.ModbusSlaveId == form.ModbusSlaveId);
+            var clash = sensors.FirstOrDefault(s => s.SiteId == site.SiteId && s.SensorId != self && s.ModbusSlaveId == form.ModbusSlaveId);
             if (clash is not null)
             {
                 errors["ModbusSlaveId"] = "Slave ID already in use.";
-                conflict = new SlaveConflict(clash.SensorId, clash.ModbusSlaveId, NextSlave(site.SiteId, sensors));
+                return new SlaveConflict(clash.SensorId, clash.ModbusSlaveId, NextSlave(site.SiteId, sensors.Where(s => s.SensorId != self).ToList()));
             }
         }
+        return null;
+    }
 
-        if (errors.Count > 0) return new RegisterResult(false, errors, conflict);
+    /// <summary>Gets a registered sensor for an administrator, or NotFound.</summary>
+    private async Task<Sensor> RequireSensorAsync(UserContext ctx, string? sensorId)
+    {
+        ctx.RequireAdmin();
+        return string.IsNullOrWhiteSpace(sensorId) ? throw new NotFoundException("That sensor was not found.")
+            : await _sensors.GetAsync(sensorId) ?? throw new NotFoundException("That sensor was not found.");
+    }
 
-        await _sensors.AddAsync(new Sensor
+    public async Task<SensorEditDto> GetEditAsync(UserContext ctx, string sensorId)
+    {
+        var s = await RequireSensorAsync(ctx, sensorId);
+        var site = await _locations.GetAsync(s.SiteId);
+        var status = (await _lookup.StatusesAsync(new[] { s }))[s.SensorId];
+        var alerts = (await _alerts.GetAllAsync(new[] { s.SiteId })).Where(a => a.SensorId == s.SensorId).ToList();
+        var form = new RegisterSensorForm
         {
-            SensorId = code, SiteId = site!.SiteId, Name = $"Soil probe {code}", Model = "SG-RS485-7", IsActive = true, IncludeInAverage = form.IncludeInAverage,
-            InstalledDate = form.InstalledDate!.Value.Date, DepthCm = form.DepthCm!.Value, ModbusSlaveId = form.ModbusSlaveId!.Value
-        });
-        return new RegisterResult(true, errors, null);
+            SensorId = s.SensorId, SiteId = s.SiteId, InstalledDate = s.InstalledDate, DepthCm = s.DepthCm, ModbusSlaveId = s.ModbusSlaveId, IncludeInAverage = s.IncludeInAverage
+        };
+        return new SensorEditDto(form, site?.Name ?? s.SiteId, s.IsActive, Display.LastReading(status?.LastCommunication, _clock.UtcNow),
+            alerts.Count(a => a.Status != AlertStatus.Resolved), alerts.Count);
+    }
+
+    public async Task<ChangeResult> UpdateAsync(UserContext ctx, RegisterSensorForm form)
+    {
+        var s = await RequireSensorAsync(ctx, form.SensorId);
+        var errors = new Dictionary<string, string>();
+        var conflict = CheckDetails(form, await _locations.GetAsync(s.SiteId), await _sensors.GetAllAsync(), s.SensorId, errors);
+        if (errors.Count > 0) return new ChangeResult(false, errors, conflict);
+
+        // the code, the site, the name and the model stay as they were
+        s.InstalledDate = form.InstalledDate!.Value.Date;
+        s.DepthCm = form.DepthCm!.Value;
+        s.ModbusSlaveId = form.ModbusSlaveId!.Value;
+        s.IncludeInAverage = form.IncludeInAverage;
+        await _sensors.UpdateAsync(s);
+        return ChangeResult.Ok;
+    }
+
+    public async Task SetActiveAsync(UserContext ctx, string sensorId, bool active)
+    {
+        var s = await RequireSensorAsync(ctx, sensorId);
+        if (s.IsActive == active) return; // already in that state
+        s.IsActive = active;
+        await _sensors.UpdateAsync(s); // first, so the alert check no longer raises alerts for it
+
+        if (active) return;
+        // a retired sensor's open alerts would stay open forever, so they are resolved with a note (action and state in one update each)
+        var now = _clock.UtcNow;
+        foreach (var alert in (await _alerts.GetAllAsync(new[] { s.SiteId })).Where(a => a.SensorId == s.SensorId && a.Status != AlertStatus.Resolved))
+        {
+            AlertWorkflow.Resolve(alert, RetiredNote, ctx.UserId, now);
+            await _alerts.SaveActionAsync(alert, resolved: true);
+        }
+    }
+
+    public async Task<ChangeResult> DeleteAsync(UserContext ctx, string sensorId, string? confirm)
+    {
+        var s = await RequireSensorAsync(ctx, sensorId);
+        if (!RemovalRule.CanDeleteSensor(s)) return ChangeResult.Fail("", "Retire the sensor before deleting it.");
+        if (!RemovalRule.Confirmed(confirm, s.SensorId)) return ChangeResult.Fail("Confirm", $"Type {s.SensorId} to confirm.");
+
+        var alertIds = (await _alerts.GetAllAsync(new[] { s.SiteId })).Where(a => a.SensorId == s.SensorId).Select(a => a.AlertId).ToList();
+        await _sensors.DeleteAsync(s, alertIds, await _links.ForAlertsAsync(alertIds));
+        return ChangeResult.Ok;
     }
 
     private static string NextCode(Site site, IReadOnlyList<Sensor> sensors)

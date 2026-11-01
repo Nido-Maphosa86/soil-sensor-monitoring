@@ -31,8 +31,10 @@ The console holds no sample data. Everything shown comes from the live Firebase 
 | **Dashboard** | The headline figures (sensors online, open alerts, values in range), and a trend chart per province: 15 minutes (live, a point every 10 seconds), 24 hours, 7 days or 30 days. The range switches without reloading the page. |
 | **Sites** | Every site with its sensors, status and latest values. Administrators can **add a site**. |
 | **Site detail** | One site: a gauge per parameter, the threshold band, and its sensors. |
-| **Sensors** | Every sensor: Online or Offline, and the time of its last reading. |
+| **Edit site** (administrator) | Change the name, crop, coordinates, planting date and description (the code cannot change). **Delete** a site once it has no sensors: its thresholds and alerts are removed and it is taken off every user, after typing its code to confirm. |
+| **Sensors** | Every sensor: Online, Offline or Retired, and the time of its last reading. |
 | **Register sensor** (administrator) | Adds a sensor to a site. It proposes the next free code (for example FS-02) and Modbus slave ID. |
+| **Edit sensor** (administrator) | Change the installation date, depth, Modbus slave ID and "include in average" (the code and site cannot change). **Retire** a probe taken out of the field: it stops counting and raising alerts, its open alerts are resolved with a note, and it can be reactivated. **Delete** a retired sensor after typing its code: the registration and its alerts are removed, and **its readings are kept**. |
 | **Readings log** | Filter by province, sensor and date range. Pages through the readings (Newest, Newer, Older). **Export CSV** covers up to 7 days. |
 | **Thresholds** (administrator) | The minimum and maximum of each parameter for each site, with the reason (basis). Who changed it, and when, is saved. |
 | **Alerts** | Filter chips: All, Critical, Warning, Offline, Acknowledged, Resolved. **Acknowledge** and **Resolve** need a note. **View note** on resolved alerts. |

@@ -40,3 +40,18 @@ public sealed class SiteForm
 
 /// <summary>Result of saving a site: success, or the error for each field.</summary>
 public sealed record SiteSaveResult(bool Success, IReadOnlyDictionary<string, string> Errors);
+
+/// <summary>
+/// The Edit site page: the form, and what is still attached to the site. Delete is only offered once SensorCount is 0.
+/// </summary>
+public sealed record SiteEditDto(string SiteId, SiteForm Form, int SensorCount, int UserCount, int AlertCount);
+
+/// <summary>The Edit sensor page: the form (the code and the site cannot change), whether it is retired, and its last reading.</summary>
+public sealed record SensorEditDto(RegisterSensorForm Form, string SiteName, bool IsActive, string LastReading, int OpenAlerts, int AlertCount);
+
+/// <summary>Result of an edit or a delete: success, or the error for each field ("" = the whole form).</summary>
+public sealed record ChangeResult(bool Success, IReadOnlyDictionary<string, string> Errors, SlaveConflict? Conflict = null)
+{
+    public static readonly ChangeResult Ok = new(true, new Dictionary<string, string>());
+    public static ChangeResult Fail(string field, string message) => new(false, new Dictionary<string, string> { [field] = message });
+}

@@ -22,7 +22,7 @@ public enum AccountStatus
 public enum AlertType
 {
     Breach,  // a reading left its min/max band
-        Offline  // the sensor has been silent for 2 hours
+    Offline  // the sensor has been silent for 1 minute
 }
 
 /// <summary>How serious an alert is. Offline alerts are shown grey and do not use these colours.</summary>
@@ -56,7 +56,8 @@ public enum MeasuredParameter
 public enum SensorState
 {
     Online,  // reported in the last minute
-    Offline  // silent for 1 minute or more   // silent for 2 hours or more
+    Offline, // silent for 1 minute or more
+    Retired  // taken out of service by an administrator; its readings are kept
 }
 
 /// <summary>The kinds of report the system can build.</summary>

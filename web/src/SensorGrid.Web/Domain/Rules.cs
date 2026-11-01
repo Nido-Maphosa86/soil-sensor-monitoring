@@ -56,11 +56,29 @@ public static class SensorStateRule
 {
     public static SensorState Evaluate(Sensor sensor, SensorStatus? status, DateTime nowUtc)
     {
-        // retired, never reported, or silent for 1 minute: Offline
-        if (!sensor.IsActive || status is null || OfflineRule.IsOffline(status.LastCommunication, nowUtc)) return SensorState.Offline;
+        // taken out of service: Retired, whatever the gateway still sends
+        if (!sensor.IsActive) return SensorState.Retired;
+        // never reported, or silent for 1 minute: Offline
+        if (status is null || OfflineRule.IsOffline(status.LastCommunication, nowUtc)) return SensorState.Offline;
         // reported in the last minute
         return SensorState.Online;
     }
+}
+
+/// <summary>
+/// Rule: removing a sensor or a site. A sensor is retired first (it stops counting and raising alerts, its readings stay), and only a retired
+/// sensor can be deleted. A site can only be deleted once it has no sensors left. Both deletes are confirmed by typing the code.
+/// </summary>
+public static class RemovalRule
+{
+    /// <summary>Only a retired sensor may be deleted, so a live sensor is never removed by one click.</summary>
+    public static bool CanDeleteSensor(Sensor sensor) => !sensor.IsActive;
+
+    /// <summary>Only an empty site may be deleted, so no sensor is left without a site.</summary>
+    public static bool CanDeleteSite(int sensorCount) => sensorCount == 0;
+
+    /// <summary>True when the person typed the code of the thing being deleted (capitals do not matter).</summary>
+    public static bool Confirmed(string? typed, string code) => string.Equals(typed?.Trim(), code, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Rule: a threshold needs a minimum below its maximum, and a basis.</summary>

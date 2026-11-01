@@ -18,6 +18,7 @@ public static class ServiceLayer
         services.AddSingleton<SensorLookup>();
         services.AddSingleton<DailyFigures>();
         services.AddSingleton<SiteMetrics>();
+        services.AddSingleton<NotificationLinks>();
 
         services.AddSingleton<ICsvWriter, CsvWriter>();
         services.AddSingleton<IPdfWriter, PdfWriter>();

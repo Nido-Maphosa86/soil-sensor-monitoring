@@ -1,0 +1,81 @@
+@* Edit site (administrators only): the site's details (the code cannot change), and Delete once it has no sensors left.
+   Deleting removes the site, its thresholds and alerts, and takes it off every user. *@
+@model SiteEditPageModel
+@{
+    var p = Model.Page;
+    var f = p.Form;
+    var errors = Model.Result?.Errors ?? new Dictionary<string, string>();
+    ViewData["Title"] = "Edit " + p.SiteId;
+    ViewData["Nav"] = "Sites";
+    ViewData["Heading"] = "Edit site " + p.SiteId;
+    ViewData["Sub"] = $"{p.SensorCount} {(p.SensorCount == 1 ? "sensor" : "sensors")} · {p.UserCount} assigned {(p.UserCount == 1 ? "user" : "users")}";
+    string Err(string key) => errors.ContainsKey(key) ? " err" : "";
+}
+@section Right {
+  <a class="btn ghost" asp-action="Details" asp-route-id="@p.SiteId">Cancel</a>
+  <button class="btn" type="submit" form="siteForm">Save changes</button>
+}
+<div class="cap">Sites &nbsp;›&nbsp; @p.SiteId</div>
+<div class="grid g21" style="align-items:start">
+<form id="siteForm" method="post" asp-action="Edit" asp-route-id="@p.SiteId">
+<div class="card" style="padding:28px 30px">
+  <div class="h3">Site details</div>
+  <div class="cap" style="margin-top:5px;margin-bottom:24px">The code stays as it is, because every sensor code at this site starts with it.</div>
+  <div class="fgrid">
+    <div class="field"><label for="SiteId">CODE</label>
+      <div class="inp"><input id="SiteId" value="@p.SiteId" readonly /></div><div class="hint">Cannot be changed</div></div>
+    <div class="field@(Err("Name"))"><label for="Name">NAME</label>
+      <div class="inp"><input id="Name" name="Name" value="@f.Name" required maxlength="60" /></div>
+      @if (errors.TryGetValue("Name", out var e1)){<div class="hint">@e1</div>}</div>
+    <div class="field@(Err("Latitude"))"><label for="Latitude">LATITUDE</label>
+      <div class="inp"><input id="Latitude" name="Latitude" value="@f.Latitude" required inputmode="decimal" maxlength="12" /></div>
+      @if (errors.TryGetValue("Latitude", out var e2)){<div class="hint">@e2</div>}else{<div class="hint">For example -28.4541</div>}</div>
+    <div class="field@(Err("Longitude"))"><label for="Longitude">LONGITUDE</label>
+      <div class="inp"><input id="Longitude" name="Longitude" value="@f.Longitude" required inputmode="decimal" maxlength="12" /></div>
+      @if (errors.TryGetValue("Longitude", out var e3)){<div class="hint">@e3</div>}else{<div class="hint">For example 26.7968</div>}</div>
+    <div class="field@(Err("Crop"))"><label for="Crop">CROP</label>
+      <div class="inp"><input id="Crop" name="Crop" value="@f.Crop" required maxlength="40" /></div>
+      @if (errors.TryGetValue("Crop", out var e4)){<div class="hint">@e4</div>}</div>
+    <div class="field@(Err("PlantingDate"))"><label for="PlantingDate">PLANTING DATE</label>
+      <div class="inp"><input id="PlantingDate" name="PlantingDate" type="date" value="@f.PlantingDate?.ToString("yyyy-MM-dd")" required /></div>
+      @if (errors.TryGetValue("PlantingDate", out var e5)){<div class="hint">@e5</div>}</div>
+  </div>
+  <div class="field@(Err("Description"))" style="margin-top:20px"><label for="Description">DESCRIPTION</label>
+    <div class="inp"><input id="Description" name="Description" value="@f.Description" maxlength="200" placeholder="Optional" /></div>
+    @if (errors.TryGetValue("Description", out var e6)){<div class="hint">@e6</div>}</div>
+</div>
+</form>
+
+<div class="stack">
+  <div class="card" style="padding:24px 26px;border-left:3px solid var(--crit)">
+    <div style="font-size:13px;font-weight:700;color:var(--crit)">Delete site</div>
+    @if (p.SensorCount > 0)
+    {
+      <div style="font-size:12px;color:var(--tx2);line-height:1.55;margin-top:9px">A site can only be deleted once it has no sensors. Retire and delete its @p.SensorCount @(p.SensorCount == 1 ? "sensor" : "sensors") first.</div>
+      <a class="btn ghost sm" style="margin-top:14px" asp-controller="Sensors" asp-action="Index" asp-route-site="@p.SiteId">Open its sensors</a>
+    }
+    else
+    {
+      <div style="font-size:12px;color:var(--tx2);line-height:1.55;margin-top:9px">Removes the site, its threshold bands and its @p.AlertCount @(p.AlertCount == 1 ? "alert" : "alerts"), and takes it off @p.UserCount @(p.UserCount == 1 ? "user" : "users"). Reports are built when they are downloaded, so past reports no longer include it. This cannot be undone.</div>
+      <button type="button" class="btn red sm" style="margin-top:14px" data-open="deleteModal">Delete site</button>
+    }
+  </div>
+</div>
+</div>
+
+@if (p.SensorCount == 0)
+{
+  <div class="modal" id="deleteModal">
+    <div class="backdrop" data-close></div>
+    <form class="box" method="post" asp-action="Delete" asp-route-id="@p.SiteId" data-ajax>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:16px;font-weight:700">Delete @f.Name</div>
+        <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <div class="cap" style="margin-top:4px">The site, its threshold bands and alerts are removed, and it is taken off every user. This cannot be undone.</div>
+      <div style="margin-top:18px"><label class="lab" for="confirmCode">TYPE @p.SiteId TO CONFIRM</label>
+        <input type="text" id="confirmCode" name="Confirm" required maxlength="2" autocomplete="off" placeholder="@p.SiteId" /></div>
+      <hr />
+      <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn red">Delete site</button></div>
+    </form>
+  </div>
+}

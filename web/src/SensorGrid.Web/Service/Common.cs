@@ -59,6 +59,31 @@ public sealed class DataScope
         ctx.CanSee(siteId) && await _locations.GetAsync(siteId) is { } site ? site : throw new NotFoundException("That province was not found.");
 }
 
+/// <summary>Finds the notifications that point at some alerts, so deleting a sensor or a site removes them in the same update.</summary>
+public sealed class NotificationLinks
+{
+    private readonly IUserRepository _users;
+    private readonly INotificationRepository _notifications;
+
+    public NotificationLinks(IUserRepository users, INotificationRepository notifications)
+    {
+        _users = users;
+        _notifications = notifications;
+    }
+
+    public async Task<IReadOnlyList<(string UserId, string AlertId)>> ForAlertsAsync(IEnumerable<string> alertIds)
+    {
+        var ids = alertIds.ToHashSet(StringComparer.Ordinal);
+        var links = new List<(string UserId, string AlertId)>();
+        if (ids.Count == 0) return links;
+        // notifications are kept per person (notifications/{uid}/{alert_id}), so each person's list is checked
+        foreach (var user in await _users.GetAllAsync())
+            foreach (var n in await _notifications.ForUserAsync(user.UserId))
+                if (ids.Contains(n.AlertId)) links.Add((user.UserId, n.AlertId));
+        return links;
+    }
+}
+
 /// <summary>Names, units, decimals and chart colours for each measured parameter.</summary>
 public static class ParameterCatalog
 {
@@ -139,7 +164,7 @@ public static class Display
 
     public static string RoleLabel(UserRole role) => role == UserRole.Administrator ? "Administrator" : "Field officer";
 
-    public static string StateLabel(SensorState s) => s == SensorState.Online ? "Online" : "Offline";
+    public static string StateLabel(SensorState s) => s.ToString(); // Online, Offline or Retired
 }
 
 /// <summary>Reads the bands and tells whether a reading is inside them.</summary>

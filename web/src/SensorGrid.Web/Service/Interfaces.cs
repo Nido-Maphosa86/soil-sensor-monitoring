@@ -44,6 +44,15 @@ public interface ISiteService
 
     /// <summary>Adds a site (administrators only) and gives it the starting threshold bands.</summary>
     Task<SiteSaveResult> AddAsync(UserContext ctx, SiteForm form);
+
+    /// <summary>The Edit site page (administrators only).</summary>
+    Task<SiteEditDto> GetEditAsync(UserContext ctx, string siteId);
+
+    /// <summary>Saves the name, description, crop, coordinates and planting date. The code never changes.</summary>
+    Task<ChangeResult> UpdateAsync(UserContext ctx, string siteId, SiteForm form);
+
+    /// <summary>Deletes an empty site with its thresholds and alerts, and takes it off every user. confirm must be the site code.</summary>
+    Task<ChangeResult> DeleteAsync(UserContext ctx, string siteId, string? confirm);
 }
 
 public interface ISensorService
@@ -52,6 +61,18 @@ public interface ISensorService
     Task<IReadOnlyList<(string SiteId, string Name)>> ProvincesAsync(UserContext ctx);
     Task<RegisterSensorForm> NewFormAsync(UserContext ctx, string? siteId);
     Task<RegisterResult> RegisterAsync(UserContext ctx, RegisterSensorForm form);
+
+    /// <summary>The Edit sensor page (administrators only).</summary>
+    Task<SensorEditDto> GetEditAsync(UserContext ctx, string sensorId);
+
+    /// <summary>Saves the installation date, depth, Modbus slave id and "include in average". The code and the site never change.</summary>
+    Task<ChangeResult> UpdateAsync(UserContext ctx, RegisterSensorForm form);
+
+    /// <summary>Retires a sensor (its open alerts are resolved with a note) or brings it back. Its readings are kept either way.</summary>
+    Task SetActiveAsync(UserContext ctx, string sensorId, bool active);
+
+    /// <summary>Deletes a retired sensor's registration and its alerts. Its readings are kept. confirm must be the sensor code.</summary>
+    Task<ChangeResult> DeleteAsync(UserContext ctx, string sensorId, string? confirm);
 }
 
 public interface IReadingService

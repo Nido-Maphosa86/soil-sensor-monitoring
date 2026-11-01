@@ -28,7 +28,8 @@
     </div>
     <div class="row" style="margin-top:20px;gap:10px">
       <a class="btn ghost sm" asp-action="Details" asp-route-id="@c.SiteId">Open site</a>
-      @if (isAdmin){<a class="btn ghost sm" asp-controller="Thresholds" asp-action="Index" asp-route-site="@c.SiteId">Edit thresholds</a>}
+      @if (isAdmin){<a class="btn ghost sm" asp-controller="Thresholds" asp-action="Index" asp-route-site="@c.SiteId">Edit thresholds</a>
+        <a class="btn ghost sm" asp-action="Edit" asp-route-id="@c.SiteId">Edit site</a>}
     </div>
   </div>
 }

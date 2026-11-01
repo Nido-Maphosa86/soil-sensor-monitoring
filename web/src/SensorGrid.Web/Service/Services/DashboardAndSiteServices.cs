@@ -167,10 +167,15 @@ public sealed class SiteService : ISiteService
     private readonly Analytics _analytics;
     private readonly IClock _clock;
     private readonly ILocationRepository _locations;
+    private readonly ISensorRepository _sensors;
+    private readonly NotificationLinks _links;
 
-    public SiteService(DataScope scope, SiteMetrics metrics, SensorLookup lookup, IAlertRepository alerts, IThresholdRepository thresholds, IUserRepository users, Analytics analytics, IClock clock, ILocationRepository locations)
+    public SiteService(DataScope scope, SiteMetrics metrics, SensorLookup lookup, IAlertRepository alerts, IThresholdRepository thresholds, IUserRepository users, Analytics analytics, IClock clock,
+        ILocationRepository locations, ISensorRepository sensors, NotificationLinks links)
     {
         _locations = locations;
+        _sensors = sensors;
+        _links = links;
         _scope = scope;
         _metrics = metrics;
         _lookup = lookup;
@@ -185,7 +190,7 @@ public sealed class SiteService : ISiteService
     {
         var now = _clock.UtcNow;
         var sites = await _scope.VisibleSitesAsync(ctx);
-        var sensors = (await _scope.VisibleSensorsAsync(ctx)).ToList();
+        var sensors = (await _scope.VisibleSensorsAsync(ctx)).Where(s => s.IsActive).ToList(); // retired sensors no longer count
         var counts = sites.Select(s => sensors.Count(x => x.SiteId == s.SiteId)).Distinct().ToList();
         var crops = sites.Select(s => s.Crop.ToLowerInvariant()).Distinct().ToList();
         var subtitle = $"{sites.Count} {(sites.Count == 1 ? "province" : "provinces")}, " +
@@ -221,8 +226,9 @@ public sealed class SiteService : ISiteService
     {
         var site = await _scope.RequireSiteAsync(ctx, siteId);
         var now = _clock.UtcNow;
-        var sensors = (await _scope.VisibleSensorsAsync(ctx)).Where(s => s.SiteId == siteId).ToList();
-        var current = await _metrics.CurrentReadingsAsync(sensors);
+        var sensors = (await _scope.VisibleSensorsAsync(ctx)).Where(s => s.SiteId == siteId).ToList(); // the table lists retired sensors too
+        var active = sensors.Where(s => s.IsActive).ToList();                                        // the figures use only active ones
+        var current = await _metrics.CurrentReadingsAsync(active);
         var bands = await _analytics.BandsForAsync(siteId);
         var statuses = await _lookup.StatusesAsync(sensors);
 
@@ -241,14 +247,15 @@ public sealed class SiteService : ISiteService
             cards.Add(new ParamCardDto(info.Label, Display.Value(info.Parameter, value), info.Unit, label, breach ? Tone.Bad : Tone.Ok, info.Colour, position, target));
         }
 
-        var newest = statuses.Values.Where(s => s is not null).Select(s => s!.LastCommunication).DefaultIfEmpty().Max();
+        var newest = active.Select(s => statuses[s.SensorId]).Where(s => s is not null).Select(s => s!.LastCommunication).DefaultIfEmpty().Max();
         var updated = newest == default ? "no readings yet" : Ago(now - newest);
-        var offline = sensors.Count(s => OfflineRule.IsOffline(statuses[s.SensorId]?.LastCommunication, now));
-        return new SiteDetailDto(site.SiteId, site.Name, $"{Coordinates(site)} · {site.Crop.ToLowerInvariant()} · {sensors.Count} sensors", cards,
+        var offline = active.Count(s => OfflineRule.IsOffline(statuses[s.SensorId]?.LastCommunication, now));
+        var retired = sensors.Count - active.Count;
+        return new SiteDetailDto(site.SiteId, site.Name, $"{Coordinates(site)} · {site.Crop.ToLowerInvariant()} · {active.Count} sensors", cards,
             outside == 0 ? $"All {cards.Count} parameters inside their target bands" : $"{outside} of {cards.Count} parameters outside their target bands",
             outside == 0 ? Tone.Ok : Tone.Bad, "updated " + updated,
             sensors.Select(s => SensorRowDto.From(s, site.Name, statuses[s.SensorId], now)).ToList(),
-            $"{sensors.Count} units, " + (offline == 0 ? "all reporting" : $"{offline} offline"));
+            $"{active.Count} units, " + (offline == 0 ? "all reporting" : $"{offline} offline") + (retired > 0 ? $", {retired} retired" : ""));
     }
 
     private static string Coordinates(Site s) =>
@@ -306,6 +313,24 @@ public sealed class SiteService : ISiteService
         var id = form.SiteId?.Trim().ToUpperInvariant() ?? "";
         if (!System.Text.RegularExpressions.Regex.IsMatch(id, "^[A-Z]{2}$")) errors["SiteId"] = "Use two capital letters, for example FS. Sensor codes at this site will start with them.";
         else if (await _locations.GetAsync(id) is not null) errors["SiteId"] = "A site with this code already exists.";
+        var site = CheckDetails(form, errors);
+        if (errors.Count > 0) return new SiteSaveResult(false, errors);
+
+        var now = _clock.UtcNow;
+        site.SiteId = id;
+        site.CreatedAt = now;
+        await _locations.SaveAsync(site);
+        await _thresholds.SaveAsync(ParameterCatalog.Readings.Select(i => new Threshold
+        {
+            SiteId = id, Parameter = i.Parameter, MinValue = i.DefaultMin, MaxValue = i.DefaultMax,
+            Basis = "Standard pigeon pea bands, set when the site was added", UpdatedBy = ctx.UserId, UpdatedAt = now
+        }));
+        return new SiteSaveResult(true, errors);
+    }
+
+    /// <summary>The checks shared by Add and Edit: name, crop, coordinates, planting date and description. Returns the site without its id.</summary>
+    private static Site CheckDetails(SiteForm form, Dictionary<string, string> errors)
+    {
         var name = form.Name?.Trim() ?? "";
         if (name.Length is 0 or > 60) errors["Name"] = "Enter a name (up to 60 characters).";
         var crop = form.Crop?.Trim() ?? "";
@@ -317,19 +342,58 @@ public sealed class SiteService : ISiteService
         if (form.PlantingDate is null) errors["PlantingDate"] = "Enter the planting date.";
         var description = form.Description?.Trim() ?? "";
         if (description.Length > 200) errors["Description"] = "Keep the description under 200 characters.";
-        if (errors.Count > 0) return new SiteSaveResult(false, errors);
+        return new Site { Name = name, Description = description, Crop = crop, Latitude = lat, Longitude = lon, PlantingDate = form.PlantingDate?.Date ?? default };
+    }
 
-        var now = _clock.UtcNow;
-        await _locations.SaveAsync(new Site
+    /// <summary>Gets a site for an administrator, or NotFound.</summary>
+    private async Task<Site> RequireSiteForAdminAsync(UserContext ctx, string? siteId)
+    {
+        ctx.RequireAdmin();
+        return string.IsNullOrWhiteSpace(siteId) ? throw new NotFoundException("That province was not found.")
+            : await _locations.GetAsync(siteId) ?? throw new NotFoundException("That province was not found.");
+    }
+
+    public async Task<SiteEditDto> GetEditAsync(UserContext ctx, string siteId)
+    {
+        var site = await RequireSiteForAdminAsync(ctx, siteId);
+        var form = new SiteForm
         {
-            SiteId = id, Name = name, Description = description, Crop = crop, Latitude = lat, Longitude = lon,
-            PlantingDate = form.PlantingDate!.Value.Date, CreatedAt = now
-        });
-        await _thresholds.SaveAsync(ParameterCatalog.Readings.Select(i => new Threshold
-        {
-            SiteId = id, Parameter = i.Parameter, MinValue = i.DefaultMin, MaxValue = i.DefaultMax,
-            Basis = "Standard pigeon pea bands, set when the site was added", UpdatedBy = ctx.UserId, UpdatedAt = now
-        }));
-        return new SiteSaveResult(true, errors);
+            SiteId = site.SiteId, Name = site.Name, Description = site.Description, Crop = site.Crop,
+            Latitude = site.Latitude.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture),
+            Longitude = site.Longitude.ToString("0.######", System.Globalization.CultureInfo.InvariantCulture), PlantingDate = site.PlantingDate
+        };
+        var sensors = (await _sensors.GetAllAsync()).Count(s => s.SiteId == site.SiteId);
+        var users = (await _users.UserIdsForLocationAsync(site.SiteId)).Count;
+        var alerts = (await _alerts.GetAllAsync(new[] { site.SiteId })).Count;
+        return new SiteEditDto(site.SiteId, form, sensors, users, alerts);
+    }
+
+    public async Task<ChangeResult> UpdateAsync(UserContext ctx, string siteId, SiteForm form)
+    {
+        var old = await RequireSiteForAdminAsync(ctx, siteId);
+        var errors = new Dictionary<string, string>();
+        var site = CheckDetails(form, errors);
+        if (errors.Count > 0) return new ChangeResult(false, errors);
+        // the code and the creation time never change
+        site.SiteId = old.SiteId;
+        site.CreatedAt = old.CreatedAt;
+        await _locations.SaveAsync(site);
+        return ChangeResult.Ok;
+    }
+
+    public async Task<ChangeResult> DeleteAsync(UserContext ctx, string siteId, string? confirm)
+    {
+        var site = await RequireSiteForAdminAsync(ctx, siteId);
+        var sensors = (await _sensors.GetAllAsync()).Count(s => s.SiteId == site.SiteId);
+        if (!RemovalRule.CanDeleteSite(sensors))
+            return ChangeResult.Fail("", $"{site.Name} still has {sensors} {(sensors == 1 ? "sensor" : "sensors")}. Retire and delete them first.");
+        if (!RemovalRule.Confirmed(confirm, site.SiteId)) return ChangeResult.Fail("Confirm", $"Type {site.SiteId} to confirm.");
+
+        var alertIds = (await _alerts.GetAllAsync(new[] { site.SiteId })).Select(a => a.AlertId).ToList();
+        // both lists, in case user_locations and location_users ever disagree
+        var users = (await _users.UserIdsForLocationAsync(site.SiteId))
+            .Union((await _users.GetAllAsync()).Where(u => u.SiteIds.Contains(site.SiteId)).Select(u => u.UserId)).ToList();
+        await _locations.DeleteAsync(site.SiteId, users, await _links.ForAlertsAsync(alertIds));
+        return ChangeResult.Ok;
     }
 }

@@ -38,6 +38,23 @@ public sealed class LocationRepository : ILocationRepository
         return _store.SetAsync($"locations/{s.SiteId}", o, ct);
     }
 
+    public Task DeleteAsync(string locationId, IEnumerable<string> userIds, IEnumerable<(string UserId, string AlertId)> notifications, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(locationId)) throw new ArgumentException("A site id is required.", nameof(locationId)); // a blank id would delete whole branches
+        // null deletes; everything goes in one update, so the site is never half deleted
+        var updates = new Dictionary<string, JsonNode?>
+        {
+            [$"locations/{locationId}"] = null,
+            [$"thresholds/{locationId}"] = null,
+            [$"alerts/{locationId}"] = null,
+            [$"alert_actions/{locationId}"] = null,
+            [$"location_users/{locationId}"] = null
+        };
+        foreach (var uid in userIds.Distinct()) updates[$"user_locations/{uid}/{locationId}"] = null;
+        foreach (var (uid, alertId) in notifications.Distinct()) updates[$"notifications/{uid}/{alertId}"] = null;
+        return _store.UpdateAsync("", updates, ct);
+    }
+
     private static Site Map(string id, JsonNode? n) => new()
     {
         SiteId = id, Name = Str(n, "name", id), Description = Str(n, "description"), Crop = Str(n, "crop", "Pigeon pea"),
@@ -137,7 +154,35 @@ public sealed class SensorRepository : ISensorRepository
     public async Task<Sensor?> GetAsync(string sensorId, CancellationToken ct = default) =>
         (await GetAllAsync(ct)).FirstOrDefault(s => s.SensorId == sensorId);
 
-    public Task AddAsync(Sensor s, CancellationToken ct = default)
+    public Task AddAsync(Sensor s, CancellationToken ct = default) =>
+        // The lookup goes in the same update, so the security rules always know the sensor's province.
+        _store.UpdateAsync("", new Dictionary<string, JsonNode?>
+        {
+            [$"sensors/{s.SiteId}/{s.SensorId}"] = ToJson(s),
+            [$"sensor_locations/{s.SensorId}"] = s.SiteId
+        }, ct);
+
+    public Task UpdateAsync(Sensor s, CancellationToken ct = default) => _store.SetAsync($"sensors/{s.SiteId}/{s.SensorId}", ToJson(s), ct);
+
+    public Task DeleteAsync(Sensor s, IEnumerable<string> alertIds, IEnumerable<(string UserId, string AlertId)> notifications, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(s.SiteId) || string.IsNullOrWhiteSpace(s.SensorId)) throw new ArgumentException("A sensor code and site are required.", nameof(s));
+        // null deletes; readings/{sensor_id} is left alone, so the gateway's data is never lost
+        var updates = new Dictionary<string, JsonNode?>
+        {
+            [$"sensors/{s.SiteId}/{s.SensorId}"] = null,
+            [$"sensor_locations/{s.SensorId}"] = null
+        };
+        foreach (var id in alertIds.Distinct())
+        {
+            updates[$"alerts/{s.SiteId}/{id}"] = null;
+            updates[$"alert_actions/{s.SiteId}/{id}"] = null;
+        }
+        foreach (var (uid, alertId) in notifications.Distinct()) updates[$"notifications/{uid}/{alertId}"] = null;
+        return _store.UpdateAsync("", updates, ct);
+    }
+
+    private static JsonObject ToJson(Sensor s)
     {
         var o = new JsonObject();
         Put(o, "name", s.Name);
@@ -147,12 +192,7 @@ public sealed class SensorRepository : ISensorRepository
         Put(o, "installation_date", DateText(s.InstalledDate));
         Put(o, "depth_cm", s.DepthCm);
         Put(o, "modbus_slave_id", s.ModbusSlaveId);
-        // The lookup goes in the same update, so the security rules always know the sensor's province.
-        return _store.UpdateAsync("", new Dictionary<string, JsonNode?>
-        {
-            [$"sensors/{s.SiteId}/{s.SensorId}"] = o,
-            [$"sensor_locations/{s.SensorId}"] = s.SiteId
-        }, ct);
+        return o;
     }
 
     private static Sensor Map(string loc, string id, JsonNode? n) => new()

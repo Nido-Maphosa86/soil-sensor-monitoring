@@ -1,4 +1,5 @@
-// What this file is for: the monitoring pages: Dashboard (W2), Sites (W3), Site detail (W4), Sensors (W5), Register sensor (W6) and Readings log (W7).
+// What this file is for: the monitoring pages: Dashboard (W2), Sites (W3), Site detail (W4), Sensors (W5), Register sensor (W6) and Readings log (W7),
+// plus Edit site and Edit sensor (administrators only: edit, retire or reactivate a sensor, and delete a retired sensor or an empty site).
 // How it fits in: Web project. Each action calls one service interface and hands the result to a view. Controllers never touch a repository or the database store.
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -61,7 +62,38 @@ public class SitesController : AppController
         var result = await _sites.AddAsync(Me, form);
         return DialogResult(result.Errors, $"{form.Name?.Trim()} was added. Review its threshold bands, then register its sensors.", Url.Action(nameof(Index))!);
     }
+
+    /// <summary>Edit site (administrators only): the details form, and Delete once the site has no sensors.</summary>
+    [HttpGet, Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Edit(string id) => View(new SiteEditPageModel(await _sites.GetEditAsync(Me, id), null));
+
+    [HttpPost, Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Edit(string id, SiteForm form)
+    {
+        var result = await _sites.UpdateAsync(Me, id, form);
+        if (!result.Success)
+        {
+            var page = await _sites.GetEditAsync(Me, id);
+            return View(new SiteEditPageModel(page with { Form = form }, result));
+        }
+        TempData["Flash"] = $"{form.Name?.Trim()} was saved.";
+        return RedirectToAction(nameof(Details), new { id });
+    }
+
+    /// <summary>Delete site: the dialog on Edit site. The code must be typed to confirm.</summary>
+    [HttpPost, Authorize(Policy = "AdminOnly")]
+    public async Task<IActionResult> Delete(string id, string? confirm)
+    {
+        var result = await _sites.DeleteAsync(Me, id, confirm);
+        return DialogResult(result.Errors, $"Site {id} was deleted.", result.Success ? Url.Action(nameof(Index))! : Url.Action(nameof(Edit), new { id })!);
+    }
 }
+
+/// <summary>The Edit site page, plus the errors of a save that was refused.</summary>
+public sealed record SiteEditPageModel(SiteEditDto Page, ChangeResult? Result);
+
+/// <summary>The Edit sensor page, plus the errors of a save that was refused.</summary>
+public sealed record SensorEditPageModel(SensorEditDto Page, ChangeResult? Result);
 
 /// <summary>W5 Sensors and W6 Register sensor (administrators only).</summary>
 public class SensorsController : AppController
@@ -95,6 +127,48 @@ public class SensorsController : AppController
             return RedirectToAction(nameof(Index), new { site = form.SiteId });
         }
         return View(new RegisterPageModel(form, result, await _sensors.ProvincesAsync(Me)));
+    }
+
+    /// <summary>Edit sensor (administrators only): its details, Retire or Reactivate, and Delete once retired.</summary>
+    [Authorize(Policy = "AdminOnly"), HttpGet]
+    public async Task<IActionResult> Edit(string id) => View(new SensorEditPageModel(await _sensors.GetEditAsync(Me, id), null));
+
+    [Authorize(Policy = "AdminOnly"), HttpPost]
+    public async Task<IActionResult> Edit(string id, RegisterSensorForm form)
+    {
+        form.SensorId = id; // the code comes from the address, never from the form
+        var result = await _sensors.UpdateAsync(Me, form);
+        if (!result.Success)
+        {
+            var page = await _sensors.GetEditAsync(Me, id);
+            return View(new SensorEditPageModel(page with { Form = form }, result));
+        }
+        TempData["Flash"] = $"Sensor {id} was saved.";
+        return RedirectToAction(nameof(Edit), new { id });
+    }
+
+    [Authorize(Policy = "AdminOnly"), HttpPost]
+    public async Task<IActionResult> Retire(string id)
+    {
+        await _sensors.SetActiveAsync(Me, id, false);
+        TempData["Flash"] = $"Sensor {id} was retired. Its readings are kept.";
+        return RedirectToAction(nameof(Edit), new { id });
+    }
+
+    [Authorize(Policy = "AdminOnly"), HttpPost]
+    public async Task<IActionResult> Reactivate(string id)
+    {
+        await _sensors.SetActiveAsync(Me, id, true);
+        TempData["Flash"] = $"Sensor {id} is active again.";
+        return RedirectToAction(nameof(Edit), new { id });
+    }
+
+    /// <summary>Delete sensor: the dialog on Edit sensor. Only a retired sensor, and the code must be typed to confirm.</summary>
+    [Authorize(Policy = "AdminOnly"), HttpPost]
+    public async Task<IActionResult> Delete(string id, string? confirm)
+    {
+        var result = await _sensors.DeleteAsync(Me, id, confirm);
+        return DialogResult(result.Errors, $"Sensor {id} was deleted. Its readings are kept.", result.Success ? Url.Action(nameof(Index))! : Url.Action(nameof(Edit), new { id })!);
     }
 }
 

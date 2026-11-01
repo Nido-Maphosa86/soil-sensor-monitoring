@@ -40,7 +40,9 @@
   </div>
   <div style="height:1px;background:var(--line2);margin-top:26px"></div>
   <div style="margin-top:22px">
-    <label class="checkrow"><input type="checkbox" name="IncludeInAverage" value="true" checked="@f.IncludeInAverage" /> Include this sensor in the site average immediately</label></div>
+    @* an unticked box sends nothing, so the hidden field after it sends "false" *@
+    <label class="checkrow"><input type="checkbox" name="IncludeInAverage" value="true" checked="@f.IncludeInAverage" /> Include this sensor in the site average immediately</label>
+    <input type="hidden" name="IncludeInAverage" value="false" /></div>
 </div>
 </form>
 

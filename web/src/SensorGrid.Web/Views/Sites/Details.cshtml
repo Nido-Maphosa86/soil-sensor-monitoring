@@ -11,7 +11,7 @@
   @* only chooses the period of the export csv file; the gauges always show the latest reading *@
   <div class="selectbox"><span data-select-label>Export: last 24 hours</span>&nbsp;&nbsp;▾
     <select id="rangeSel" aria-label="Export range"><option value="24h">Export: last 24 hours</option><option value="7d">Export: last 7 days</option></select></div>
-  @if (shell.IsAdmin){<a class="btn ghost" asp-controller="Thresholds" asp-action="Index" asp-route-site="@Model.SiteId">Edit thresholds</a>}
+  @if (shell.IsAdmin){<a class="btn ghost" asp-action="Edit" asp-route-id="@Model.SiteId">Edit site</a>}
   <a class="btn" id="exportBtn" asp-controller="Readings" asp-action="Export" asp-route-range="24h" asp-route-site="@Model.SiteId">Export CSV</a>
 }
 <div class="tabs narrow" style="width:100%">

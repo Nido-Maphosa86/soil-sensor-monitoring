@@ -75,7 +75,11 @@ class LocationDetailViewModel extends LoadingViewModel<LocationDetail> {
       final st = statuses[s.id];
       if (st != null && (lastUpdated == null || st.lastCommunication.isAfter(lastUpdated))) lastUpdated = st.lastCommunication;
       String label, key;
-      if (!s.isActive || st == null || SensorRules.isOffline(st.lastCommunication, now)) {
+      if (!s.isActive) {
+        // retired on the web console: it no longer counts, whatever it still sends
+        label = 'Retired';
+        key = 'off';
+      } else if (st == null || SensorRules.isOffline(st.lastCommunication, now)) {
         label = 'Offline';
         key = 'off';
       } else {
