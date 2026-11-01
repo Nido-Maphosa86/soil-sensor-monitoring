@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The background colour of the launcher icon: the mint of the SensorGrid mark. -->
+<resources>
+    <color name="ic_launcher_background">#61C9A0</color>
+</resources>

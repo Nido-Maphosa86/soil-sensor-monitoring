@@ -2,7 +2,7 @@
     <!-- Needed to reach Firebase in release builds (debug builds already have it). -->
     <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="sensorgrid_mobile"
+        android:label="SensorGrid"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
