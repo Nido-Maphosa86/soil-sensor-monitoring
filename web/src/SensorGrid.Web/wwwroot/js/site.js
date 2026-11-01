@@ -31,7 +31,7 @@
     if (!open) { bellMenu.classList.add('open'); loadBell(); }
   });
   document.addEventListener('click', function (e) { if (!e.target.closest('.menu')) closeMenus(); });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeMenus(); $all('.modal.open').forEach(function (m) { m.classList.remove('open'); }); } });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { closeMenus(); $all('.modal.open').forEach(function (m) { m.classList.remove('open'); clearErrors(m); }); } });
 
   function loadBell() {
     fetch('/Notifications/List', { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (items) {
@@ -64,9 +64,49 @@
   document.addEventListener('click', function (e) {
     var opener = e.target.closest('[data-open]');
     if (opener) { var m = document.getElementById(opener.getAttribute('data-open')); if (m) m.classList.add('open'); }
-    if (e.target.closest('[data-close]')) { var open = e.target.closest('.modal'); if (open) open.classList.remove('open'); }
+    if (e.target.closest('[data-close]')) { var open = e.target.closest('.modal'); if (open) { open.classList.remove('open'); clearErrors(open); } }
   });
   $all('.modal[data-open-on-load="1"]').forEach(function (m) { m.classList.add('open'); });
+
+  /* ---------- Dialog forms (data-ajax): sent in the background, so an error shows under its field and the dialog stays open ---------- */
+  // The server answers { ok: true, redirect } or { ok: false, errors: { fieldName: message } }; the field "" is the whole form.
+  function clearErrors(root) {
+    $all('.ferr', root).forEach(function (e) { e.remove(); });
+    $all('.bad-input', root).forEach(function (e) { e.classList.remove('bad-input'); });
+  }
+  function showErrors(form, errors) {
+    clearErrors(form);
+    Object.keys(errors).forEach(function (key) {
+      var box = document.createElement('div');
+      box.className = 'ferr';
+      box.textContent = errors[key];
+      // the message goes under its field (data-field marks a group, such as the province checkboxes); otherwise at the top of the dialog
+      var spot = key && (form.querySelector('[data-field="' + key + '"]') || form.querySelector('[name="' + key + '"]'));
+      if (spot && spot.matches('input,select,textarea')) { spot.classList.add('bad-input'); spot = spot.closest('.pw') || spot; }
+      if (spot) spot.insertAdjacentElement('afterend', box);
+      else { box.className = 'ferr top'; (form.querySelector('.cap') || form.firstElementChild).insertAdjacentElement('afterend', box); }
+    });
+    var first = form.querySelector('.bad-input');
+    if (first) first.focus();
+  }
+  $all('form[data-ajax]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var btn = form.querySelector('[type=submit]');
+      if (btn) btn.disabled = true;
+      fetch(form.action, { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.ok) { window.location.href = res.redirect; return; }
+          showErrors(form, res.errors || {});
+          if (btn) btn.disabled = false;
+        })
+        .catch(function () {
+          showErrors(form, { '': 'Something went wrong. Check your connection and try again.' });
+          if (btn) btn.disabled = false;
+        });
+    });
+  });
 
   /* ---------- Styled selects and dates keep their label in step; filters submit by themselves ---------- */
   $all('.selectbox').forEach(function (box) {
@@ -88,7 +128,12 @@
   function initExportRange() {
     var sel = $('#rangeSel'), btn = $('#exportBtn');
     if (!sel || !btn) return;
-    sel.addEventListener('change', function () { btn.href = btn.href.replace(/range=[^&]*/, 'range=' + sel.value); });
+    // Export CSV covers at most 7 days, so with the 30-day chart it exports the last 7 days and says so
+    sel.addEventListener('change', function () {
+      var range = sel.value === '30d' ? '7d' : sel.value;
+      btn.href = btn.href.replace(/range=[^&]*/, 'range=' + range);
+      btn.textContent = sel.value === '30d' ? 'Export CSV (last 7 days)' : 'Export CSV';
+    });
   }
 
   /* ---------- Dashboard trend chart: one line per province; "Last 15 minutes" has a point every 10 seconds and reloads every 10 seconds ---------- */

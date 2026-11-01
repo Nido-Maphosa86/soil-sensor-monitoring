@@ -59,7 +59,7 @@
 {
   <div class="modal" id="@(mode)Modal">
     <div class="backdrop" data-close></div>
-    <form class="box" method="post" asp-action="@(mode == "create" ? "Create" : "Edit")">
+    <form class="box" method="post" asp-action="@(mode == "create" ? "Create" : "Edit")" data-ajax>
       @if (mode == "edit"){<input type="hidden" name="UserId" id="editUserId" />}
       <div style="display:flex;justify-content:space-between;align-items:center">
         <div style="font-size:16px;font-weight:700">@(mode == "create" ? "Invite user" : "Edit account")</div>
@@ -70,7 +70,7 @@
       <div style="margin-top:14px"><label class="lab" for="@(mode)Role">ROLE</label>
         <select id="@(mode)Role" name="Role"><option value="StandardUser">Field officer</option><option value="Administrator">Administrator</option></select></div>
       <div style="margin-top:14px"><label class="lab">ASSIGNED PROVINCES (FIELD OFFICERS)</label>
-        <div style="display:flex;gap:18px;flex-wrap:wrap">
+        <div style="display:flex;gap:18px;flex-wrap:wrap" data-field="SiteIds">
           @foreach (var (id, name) in Model.Provinces)
           {
             <label class="checkrow"><input type="checkbox" name="SiteIds" value="@id" data-site="@id" /> @name</label>

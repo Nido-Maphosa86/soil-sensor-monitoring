@@ -60,24 +60,27 @@ public class AlertsController : AppController
     public async Task<IActionResult> Index(string? chip, string? q, string? site) => View(new AlertsViewModel(await _alerts.GetPageAsync(Me, chip, q, site), chip ?? "All", q, site));
 
     [HttpPost]
-    public Task<IActionResult> Acknowledge(string id, string? note, string? chip) => ActAsync(() => _alerts.AcknowledgeAsync(Me, id, note), "Alert acknowledged.", chip);
+    public Task<IActionResult> Acknowledge(string id, string? note, string? chip) => ActAsync(() => _alerts.AcknowledgeAsync(Me, id, note), note, "Alert acknowledged.", chip);
 
     [HttpPost]
-    public Task<IActionResult> Resolve(string id, string? note, string? chip) => ActAsync(() => _alerts.ResolveAsync(Me, id, note), "Alert resolved.", chip);
+    public Task<IActionResult> Resolve(string id, string? note, string? chip) => ActAsync(() => _alerts.ResolveAsync(Me, id, note), note, "Alert resolved.", chip);
 
-    /// <summary>Runs the change; a broken rule (for example a missing note) is shown to the person and nothing is saved.</summary>
-    private async Task<IActionResult> ActAsync(Func<Task> change, string okMessage, string? chip)
+    /// <summary>
+    /// Runs the change; a broken rule is shown in the note dialog and nothing is saved. A missing note is shown under the note box,
+    /// any other rule (for example "already resolved") at the top of the dialog.
+    /// </summary>
+    private async Task<IActionResult> ActAsync(Func<Task> change, string? note, string okMessage, string? chip)
     {
+        var errors = new Dictionary<string, string>();
         try
         {
             await change();
-            TempData["Flash"] = okMessage;
         }
         catch (DomainException e)
         {
-            TempData["FlashBad"] = e.Message;
+            errors[string.IsNullOrWhiteSpace(note) ? "note" : ""] = e.Message;
         }
-        return RedirectToAction(nameof(Index), new { chip });
+        return DialogResult(errors, okMessage, Url.Action(nameof(Index), new { chip })!);
     }
 
     [HttpGet]
@@ -102,9 +105,8 @@ public class ReportsController : AppController
     public async Task<IActionResult> Generate(ReportKind kind, ReportFormat format, string? period, DateTime? from)
     {
         var result = await _reports.GenerateAsync(Me, kind, format, period, from);
-        if (result.Success) TempData["Flash"] = "Report added. Download builds it from the latest data.";
-        else TempData["FlashBad"] = result.Error;
-        return RedirectToAction(nameof(Index), new { period });
+        var errors = result.Success ? new Dictionary<string, string>() : new Dictionary<string, string> { [result.Field ?? ""] = result.Error ?? "The report could not be added." };
+        return DialogResult(errors, "Report added. Download builds it from the latest data.", Url.Action(nameof(Index), new { period })!);
     }
 
     public async Task<IActionResult> Download(string id)
@@ -129,8 +131,7 @@ public class UsersController : AppController
     public async Task<IActionResult> Create(UserForm form)
     {
         var result = await _users.CreateAsync(Me, form);
-        Report(result, $"Invitation sent to {form.Email?.Trim()}.");
-        return RedirectToAction(nameof(Index));
+        return DialogResult(result.Success ? new Dictionary<string, string>() : result.Errors, result.Notice ?? $"Invitation sent to {form.Email?.Trim()}.", Url.Action(nameof(Index))!);
     }
 
     [HttpPost]
@@ -144,8 +145,7 @@ public class UsersController : AppController
     public async Task<IActionResult> Edit(UserForm form)
     {
         var result = await _users.UpdateAsync(Me, form);
-        Report(result, "Account updated.");
-        return RedirectToAction(nameof(Index));
+        return DialogResult(result.Success ? new Dictionary<string, string>() : result.Errors, result.Notice ?? "Account updated.", Url.Action(nameof(Index))!);
     }
 
     private void Report(UserSaveResult result, string ok)
@@ -177,17 +177,13 @@ public class ProfileController : AppController
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>Change password (W12b). Each error is shown in the dialog under the box it is about.</summary>
     [HttpPost]
     public async Task<IActionResult> ChangePassword(string? current, string? next, string? confirm)
     {
         var errors = await _auth.ChangePasswordAsync(Me.UserId, current, next, confirm);
-        if (errors.Count == 0) TempData["Flash"] = "Password updated.";
-        else
-        {
-            TempData["FlashBad"] = string.Join(" ", errors);
-            TempData["OpenPasswordDialog"] = "1";
-        }
-        return RedirectToAction(nameof(Index));
+        if (errors.Count > 0 && !FromDialog) TempData["OpenPasswordDialog"] = "1"; // without JavaScript the page reloads with the dialog open
+        return DialogResult(errors, "Password updated.", Url.Action(nameof(Index))!);
     }
 }
 

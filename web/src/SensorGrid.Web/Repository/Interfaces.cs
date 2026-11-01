@@ -54,6 +54,14 @@ public interface IReadingRepository
     /// <summary>The readings of one sensor between two UTC times (inclusive), oldest first.</summary>
     Task<IReadOnlyList<Reading>> QueryAsync(string locationId, string sensorId, DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 
+    /// <summary>
+    /// One page of a sensor's readings between two UTC times, with their keys (push IDs), for the Readings log. Reads only what it returns:
+    /// without a key, the newest count rows; with beforeKey, the newest count rows older than that key; with afterKey, the oldest count rows
+    /// newer than that key. Always oldest first.
+    /// </summary>
+    Task<IReadOnlyList<(string Key, Reading Reading)>> PageAsync(string locationId, string sensorId, DateTime fromUtc, DateTime toUtc,
+        string? beforeKey, string? afterKey, int count, CancellationToken ct = default);
+
     Task<Reading?> LatestAsync(string locationId, string sensorId, CancellationToken ct = default);
 
 }

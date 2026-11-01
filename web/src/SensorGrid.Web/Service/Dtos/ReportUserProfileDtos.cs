@@ -13,7 +13,8 @@ public sealed record ReportsPageDto(string Subtitle, string Period, string Perio
     IReadOnlyList<NutrientGroupDto> Nutrients, IReadOnlyList<InRangeDto> InRange, IReadOnlyList<SummaryRowDto> Summary, IReadOnlyList<GeneratedReportDto> Generated,
     DateTime RawFrom, DateTime RawEarliest, DateTime RawLatest);
 public sealed record ReportFile(byte[] Content, string FileName, string ContentType);
-public sealed record GenerateReportResult(bool Success, string? Error, string? ReportId);
+/// <summary>The answer to Generate report. Field names the dialog box the error is about ("kind", "format", "period", "from"), or null for the whole form.</summary>
+public sealed record GenerateReportResult(bool Success, string? Error, string? ReportId, string? Field = null);
 public sealed record RoleCardDto(string Role, string Count, Tone Tone, IReadOnlyList<string> Permissions);
 public sealed record UserRowDto(string UserId, string Name, string Email, string Role, string Provinces, string LastActive, string StatusLabel, Tone Tone, bool IsSelf, string SiteIds);
 public sealed record UsersPageDto(string Subtitle, IReadOnlyList<RoleCardDto> Roles, IReadOnlyList<UserRowDto> Rows, IReadOnlyList<(string SiteId, string Name)> Provinces);

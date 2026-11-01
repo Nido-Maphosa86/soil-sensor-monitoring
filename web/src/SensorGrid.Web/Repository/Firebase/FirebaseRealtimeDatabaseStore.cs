@@ -38,13 +38,15 @@ public sealed class FirebaseRealtimeDatabaseStore : IRealtimeDatabaseStore
     }
 
     /// <summary>GET with orderBy="$key": the children of a path in key order, optionally a range and only the last few.</summary>
-    public async Task<IReadOnlyList<KeyValuePair<string, JsonNode?>>> QueryByKeyAsync(string path, string? startAt = null, string? endAt = null, int? limitToLast = null, CancellationToken ct = default)
+    public async Task<IReadOnlyList<KeyValuePair<string, JsonNode?>>> QueryByKeyAsync(string path, string? startAt = null, string? endAt = null, int? limitToLast = null,
+        CancellationToken ct = default, int? limitToFirst = null)
     {
         // The values of these parameters must be JSON, so strings are quoted: orderBy="$key"&startAt="202609010000"
         var q = new StringBuilder("&orderBy=" + Uri.EscapeDataString("\"$key\""));
         if (startAt is not null) q.Append("&startAt=").Append(Uri.EscapeDataString(JsonSerializer.Serialize(startAt)));
         if (endAt is not null) q.Append("&endAt=").Append(Uri.EscapeDataString(JsonSerializer.Serialize(endAt)));
         if (limitToLast is { } n) q.Append("&limitToLast=").Append(n);
+        if (limitToFirst is { } m) q.Append("&limitToFirst=").Append(m);
 
         var text = await SendAsync(HttpMethod.Get, path, q.ToString(), null, ct);
         var list = new List<KeyValuePair<string, JsonNode?>>();

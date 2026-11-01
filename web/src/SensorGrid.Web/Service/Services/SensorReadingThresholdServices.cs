@@ -1,6 +1,6 @@
 // What this file is for: the Sensors list, registering a new sensor, the Readings log with CSV export, and the Thresholds editor.
 // How it fits in: Service folder. Controllers call these through interfaces; province filtering and the admin-only rules are enforced here, not only in the screens.
-// Readings are read as key ranges per sensor, and a readings query covers at most 31 days.
+// Readings are read as key ranges per sensor. The log reads only the rows of the page it shows; Export CSV covers at most 7 days.
 using System.Globalization;
 using SensorGrid.Domain;
 using SensorGrid.Repository;
@@ -133,20 +133,28 @@ public sealed class SensorService : ISensorService
     }
 }
 
+/// <summary>
+/// The Readings log. The gateway writes a reading about every 6 seconds, so a page never reads the whole period: each sensor gives only the
+/// rows the page shows (Firebase "the newest 14 before this key"), and Newer / Older move by key. Export CSV reads the whole period, so it is
+/// limited to 7 days.
+/// </summary>
 public sealed class ReadingService : IReadingService
 {
     public const int PageSize = 14;
-    private const int MaxDays = 31; // a query covers at most 31 days
+    public const int MaxDays = 31;      // the longest period the log shows
+    public const int MaxExportDays = 7; // the longest period Export CSV writes (about 100,000 rows per sensor)
 
     private readonly DataScope _scope;
     private readonly SensorLookup _lookup;
+    private readonly IReadingRepository _readings;
     private readonly ICsvWriter _csv;
     private readonly IClock _clock;
 
-    public ReadingService(DataScope scope, SensorLookup lookup, ICsvWriter csv, IClock clock)
+    public ReadingService(DataScope scope, SensorLookup lookup, IReadingRepository readings, ICsvWriter csv, IClock clock)
     {
         _scope = scope;
         _lookup = lookup;
+        _readings = readings;
         _csv = csv;
         _clock = clock;
     }
@@ -154,65 +162,90 @@ public sealed class ReadingService : IReadingService
     // The dates in a filter are South African local times, as the person sees and types them.
     public ReadingFilter DefaultFilter()
     {
-        var today = Display.Local(_clock.UtcNow).Date;
-        return new(today.AddDays(-7), today.AddDays(1).AddMinutes(-1), null, null, 1);
+        var now = Display.Local(_clock.UtcNow);
+        var minute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0);
+        return new(minute.AddHours(-24), minute.AddMinutes(1), null, null);
     }
 
     public ReadingFilter FilterForRange(string? range, string? siteId = null)
     {
         var now = Display.Local(_clock.UtcNow);
-        return new(now - (range == "30d" ? TimeSpan.FromDays(30) : range == "7d" ? TimeSpan.FromDays(7) : range == "15m" ? TimeSpan.FromMinutes(15) : TimeSpan.FromHours(24)), now, siteId, null, 1);
+        // the exports of the dashboard and the site page; the longest is 7 days, the most Export CSV writes
+        return new(now - (range == "7d" ? TimeSpan.FromDays(7) : range == "15m" ? TimeSpan.FromMinutes(15) : TimeSpan.FromHours(24)), now, siteId, null);
     }
 
-    public async Task<ReadingsPageDto> GetPageAsync(UserContext ctx, ReadingFilter filter)
+    /// <summary>What is wrong with the dates of a filter, or null when they are fine. maxDays is 31 for the log and 7 for Export CSV.</summary>
+    public static string? CheckDates(ReadingFilter f, int maxDays)
+    {
+        if (f.From is null || f.To is null) return "Choose both a From and a To date.";
+        if (f.From >= f.To) return "From must be before To.";
+        if (f.To - f.From > TimeSpan.FromDays(maxDays))
+            return maxDays == MaxExportDays
+                ? $"Export CSV covers at most {MaxExportDays} days (a reading every 6 seconds is about 14,400 rows a day per sensor). Choose a shorter period."
+                : $"The period can be at most {MaxDays} days. Choose a shorter period.";
+        return null;
+    }
+
+    public async Task<ReadingsPageDto> GetPageAsync(UserContext ctx, ReadingFilter filter, string? exportError = null)
     {
         var sites = await _scope.VisibleSitesAsync(ctx);
         var siteNames = sites.ToDictionary(s => s.SiteId, s => s.Name);
         var visible = await _scope.VisibleSensorsAsync(ctx);
         var sensorIds = visible.Where(s => string.IsNullOrEmpty(filter.SiteId) || s.SiteId == filter.SiteId).Select(s => s.SensorId).ToList();
-
-        var rows = await FindAsync(ctx, filter);
-        var pageCount = Math.Max(1, (int)Math.Ceiling(rows.Count / (double)PageSize));
-        var page = Math.Clamp(filter.Page, 1, pageCount);
-        var slice = rows.Skip((page - 1) * PageSize).Take(PageSize).ToList();
-
-        var dtos = slice.Select(r => new ReadingRowDto(Display.Local(r.Timestamp).ToString("yyyy-MM-dd HH:mm:ss"), siteNames[r.SiteId], r.SensorId,
-            ParameterCatalog.Readings.Select(i => Display.Value(i.Parameter, r.ValueOf(i.Parameter))).ToList())).ToList();
-
+        var provinces = sites.Select(s => (s.SiteId, s.Name)).ToList();
         var scopeText = string.IsNullOrEmpty(filter.SiteId) ? (sites.Count == 3 ? "all provinces" : string.Join(", ", sites.Select(s => s.Name))) : siteNames.GetValueOrDefault(filter.SiteId, "");
         var caption = $"{Range(filter)} · {scopeText} · timestamps in South African Standard Time";
-        return new ReadingsPageDto(filter with { Page = page }, $"{rows.Count.ToString("N0", Display.Culture)} readings", caption, dtos, page, pageCount, rows.Count,
-            rows.Count == 0 ? 0 : (page - 1) * PageSize + 1, (page - 1) * PageSize + dtos.Count, sites.Select(s => (s.SiteId, s.Name)).ToList(), sensorIds);
+
+        var error = CheckDates(filter, MaxDays) ?? exportError;
+        if (CheckDates(filter, MaxDays) is not null)
+            return new ReadingsPageDto(filter, caption, new List<ReadingRowDto>(), null, null, false, error, provinces, sensorIds);
+
+        // each sensor gives at most one page of rows; together they are cut to the page, newest first
+        var sensors = Matching(visible, filter);
+        var (fromUtc, toUtc) = Utc(filter);
+        var found = await Task.WhenAll(sensors.Select(s => _readings.PageAsync(s.SiteId, s.SensorId, fromUtc, toUtc, filter.Before, filter.After, PageSize + 1)));
+        var all = found.SelectMany(x => x).OrderBy(r => r.Key, StringComparer.Ordinal).ToList();
+        var more = all.Count > PageSize; // there is another page in the direction we are moving
+        var page = (filter.After is not null ? all.Take(PageSize) : all.TakeLast(PageSize)).Reverse().ToList();
+
+        var rows = page.Select(r => new ReadingRowDto(Display.Local(r.Reading.Timestamp).ToString("yyyy-MM-dd HH:mm:ss"), siteNames.GetValueOrDefault(r.Reading.SiteId, r.Reading.SiteId),
+            r.Reading.SensorId, ParameterCatalog.Readings.Select(i => Display.Value(i.Parameter, r.Reading.ValueOf(i.Parameter))).ToList())).ToList();
+
+        // Older continues below the last row shown; Newer continues above the first one. The newest page has no Newer.
+        var older = page.Count > 0 && (filter.After is not null || more) ? page[^1].Key : null;
+        var newer = page.Count > 0 && (filter.Before is not null || (filter.After is not null && more)) ? page[0].Key : null;
+        return new ReadingsPageDto(filter, caption, rows, older, newer, filter.Before is null && filter.After is null, error, provinces, sensorIds);
     }
 
-    public async Task<byte[]> ExportCsvAsync(UserContext ctx, ReadingFilter filter)
+    public async Task<ReadingsExport> ExportCsvAsync(UserContext ctx, ReadingFilter filter)
     {
+        if (CheckDates(filter, MaxExportDays) is { } error) return new ReadingsExport(null, error);
         var siteNames = (await _scope.VisibleSitesAsync(ctx)).ToDictionary(s => s.SiteId, s => s.Name);
+        var sensors = Matching(await _scope.VisibleSensorsAsync(ctx), filter);
+        var (fromUtc, toUtc) = Utc(filter);
+        var found = await _lookup.ReadingsAsync(sensors, fromUtc, toUtc);
         var header = new[] { "Timestamp", "Province", "Sensor" }.Concat(ParameterCatalog.Readings.Select(i => $"{i.Short} ({i.Unit})"));
-        var rows = (await FindAsync(ctx, filter)).Select(r => new[] { Display.Local(r.Timestamp).ToString("yyyy-MM-dd HH:mm:ss"), siteNames[r.SiteId], r.SensorId }
-            .Concat(ParameterCatalog.Readings.Select(i => r.ValueOf(i.Parameter).ToString(CultureInfo.InvariantCulture))));
-        return _csv.Write(header, rows);
+        var rows = found.Values.SelectMany(x => x).OrderByDescending(r => r.Timestamp).ThenBy(r => r.SensorId, StringComparer.Ordinal)
+            .Select(r => new[] { Display.Local(r.Timestamp).ToString("yyyy-MM-dd HH:mm:ss"), siteNames[r.SiteId], r.SensorId }
+                .Concat(ParameterCatalog.Readings.Select(i => r.ValueOf(i.Parameter).ToString(CultureInfo.InvariantCulture))));
+        return new ReadingsExport(_csv.Write(header, rows), null);
     }
 
-    /// <summary>Applies the filter, always limited to the person's provinces first. Newest first.</summary>
-    private async Task<List<Reading>> FindAsync(UserContext ctx, ReadingFilter f)
-    {
-        var sensors = (await _scope.VisibleSensorsAsync(ctx)).Where(s => string.IsNullOrEmpty(f.SiteId) || s.SiteId == f.SiteId)
-            .Where(s => string.IsNullOrEmpty(f.SensorId) || s.SensorId == f.SensorId).ToList();
-        var to = (f.To ?? Display.Local(_clock.UtcNow)) - Display.SouthAfrica;
-        var from = (f.From ?? to.AddDays(-7)) - (f.From is null ? TimeSpan.Zero : Display.SouthAfrica);
-        if (to - from > TimeSpan.FromDays(MaxDays)) from = to.AddDays(-MaxDays);
-        var found = await _lookup.ReadingsAsync(sensors, DateTime.SpecifyKind(from, DateTimeKind.Utc), DateTime.SpecifyKind(to, DateTimeKind.Utc));
-        return found.Values.SelectMany(x => x).OrderByDescending(r => r.Timestamp).ThenBy(r => r.SensorId, StringComparer.Ordinal).ToList();
-    }
+    /// <summary>The sensors the filter asks for, always limited to the person's provinces first.</summary>
+    private static List<Sensor> Matching(IEnumerable<Sensor> visible, ReadingFilter f) =>
+        visible.Where(s => string.IsNullOrEmpty(f.SiteId) || s.SiteId == f.SiteId).Where(s => string.IsNullOrEmpty(f.SensorId) || s.SensorId == f.SensorId).ToList();
+
+    /// <summary>The filter's South African times as UTC.</summary>
+    private static (DateTime From, DateTime To) Utc(ReadingFilter f) =>
+        (DateTime.SpecifyKind(f.From!.Value - Display.SouthAfrica, DateTimeKind.Utc), DateTime.SpecifyKind(f.To!.Value - Display.SouthAfrica, DateTimeKind.Utc));
 
     private static string Range(ReadingFilter f)
     {
-        if (f.From is null || f.To is null) return "Last 7 days";
+        if (f.From is null || f.To is null) return "Last 24 hours";
         var a = f.From.Value;
         var b = f.To.Value;
-        if (a.Year == b.Year && a.Month == b.Month) return $"{a.Day} – {b.Day} {b.ToString("MMMM yyyy", Display.Culture)}";
-        return $"{a.ToString("d MMM yyyy", Display.Culture)} – {b.ToString("d MMM yyyy", Display.Culture)}";
+        if (a.Date == b.Date) return $"{a:HH:mm} – {b:HH:mm}, {b.ToString("d MMMM yyyy", Display.Culture)}";
+        return $"{a.ToString("d MMM HH:mm", Display.Culture)} – {b.ToString("d MMM yyyy HH:mm", Display.Culture)}";
     }
 }
 

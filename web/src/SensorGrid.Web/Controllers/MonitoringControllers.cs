@@ -11,6 +11,22 @@ namespace SensorGrid.Web.Controllers;
 public abstract class AppController : Controller
 {
     protected UserContext Me => User.ToContext();
+
+    /// <summary>True when a dialog sent its form in the background (site.js, data-ajax), so the answer is JSON instead of a new page.</summary>
+    protected bool FromDialog => Request.Headers["X-Requested-With"] == "fetch";
+
+    /// <summary>
+    /// The answer to a dialog form. With errors, the dialog gets the message for each field ("" = the whole form) and stays open.
+    /// Without errors, the green message is kept for the next page and the browser goes there.
+    /// Without JavaScript the form is posted normally, so the errors fall back to the red banner on the next page.
+    /// </summary>
+    protected IActionResult DialogResult(IReadOnlyDictionary<string, string> errors, string okMessage, string nextUrl)
+    {
+        if (errors.Count == 0) TempData["Flash"] = okMessage;
+        if (FromDialog) return errors.Count == 0 ? Json(new { ok = true, redirect = nextUrl }) : Json(new { ok = false, errors });
+        if (errors.Count > 0) TempData["FlashBad"] = string.Join(" ", errors.Values);
+        return Redirect(nextUrl);
+    }
 }
 
 /// <summary>W2 Dashboard and the data for its trend chart.</summary>
@@ -43,9 +59,7 @@ public class SitesController : AppController
     public async Task<IActionResult> Add(SiteForm form)
     {
         var result = await _sites.AddAsync(Me, form);
-        if (result.Success) TempData["Flash"] = $"{form.Name?.Trim()} was added. Review its threshold bands, then register its sensors.";
-        else TempData["FlashBad"] = string.Join(" ", result.Errors.Values);
-        return RedirectToAction(nameof(Index));
+        return DialogResult(result.Errors, $"{form.Name?.Trim()} was added. Review its threshold bands, then register its sensors.", Url.Action(nameof(Index))!);
     }
 }
 
@@ -94,17 +108,20 @@ public class ReadingsController : AppController
 
     public ReadingsController(IReadingService readings) => _readings = readings;
 
-    public async Task<IActionResult> Index(DateTime? from, DateTime? to, string? site, string? sensor, int page = 1)
+    public async Task<IActionResult> Index(DateTime? from, DateTime? to, string? site, string? sensor, string? before, string? after)
     {
         var d = _readings.DefaultFilter();
-        var filter = new ReadingFilter(from ?? d.From, to ?? d.To, site, sensor, page);
-        return View(await _readings.GetPageAsync(Me, filter));
+        var filter = new ReadingFilter(from ?? d.From, to ?? d.To, site, sensor, before, after);
+        return View(await _readings.GetPageAsync(Me, filter, TempData["ExportError"] as string));
     }
 
-    /// <summary>Exports the whole filtered set (not only the visible page).</summary>
+    /// <summary>Exports the whole filtered set (not only the visible page). A period that is too long goes back to the log with the reason under the dates.</summary>
     public async Task<IActionResult> Export(DateTime? from, DateTime? to, string? site, string? sensor, string? range)
     {
-        var filter = range is not null ? _readings.FilterForRange(range, site) : new ReadingFilter(from, to, site, sensor, 1);
-        return File(await _readings.ExportCsvAsync(Me, filter), "text/csv", "readings.csv");
+        var filter = range is not null ? _readings.FilterForRange(range, site) : new ReadingFilter(from, to, site, sensor);
+        var export = await _readings.ExportCsvAsync(Me, filter);
+        if (export.Csv is not null) return File(export.Csv, "text/csv", "readings.csv");
+        TempData["ExportError"] = export.Error;
+        return RedirectToAction(nameof(Index), new { from = filter.From?.ToString("yyyy-MM-ddTHH:mm"), to = filter.To?.ToString("yyyy-MM-ddTHH:mm"), site, sensor });
     }
 }

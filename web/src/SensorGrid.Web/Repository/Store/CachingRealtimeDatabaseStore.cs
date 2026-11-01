@@ -50,8 +50,9 @@ public sealed class CachingRealtimeDatabaseStore : IRealtimeDatabaseStore
     }
 
     // a period of readings changes every few seconds and is different every time, so it always goes to Firebase
-    public Task<IReadOnlyList<KeyValuePair<string, JsonNode?>>> QueryByKeyAsync(string path, string? startAt = null, string? endAt = null, int? limitToLast = null, CancellationToken ct = default) =>
-        _inner.QueryByKeyAsync(path, startAt, endAt, limitToLast, ct);
+    public Task<IReadOnlyList<KeyValuePair<string, JsonNode?>>> QueryByKeyAsync(string path, string? startAt = null, string? endAt = null, int? limitToLast = null,
+        CancellationToken ct = default, int? limitToFirst = null) =>
+        _inner.QueryByKeyAsync(path, startAt, endAt, limitToLast, ct, limitToFirst);
 
     public async Task SetAsync(string path, JsonNode? json, CancellationToken ct = default)
     {

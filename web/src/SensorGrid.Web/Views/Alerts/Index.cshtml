@@ -78,7 +78,7 @@
 @* Note dialog: used for both Acknowledge and Resolve. The server refuses an empty note too. *@
 <div class="modal" id="noteModal">
   <div class="backdrop" data-close></div>
-  <form class="box" method="post" id="noteForm" asp-action="Acknowledge">
+  <form class="box" method="post" id="noteForm" asp-action="Acknowledge" data-ajax>
     <input type="hidden" name="id" id="noteId" />
     <input type="hidden" name="chip" value="@Model.Chip" />
     <div style="display:flex;justify-content:space-between;align-items:center">

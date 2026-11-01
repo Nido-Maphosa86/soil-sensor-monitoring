@@ -1,4 +1,5 @@
-@* W7 Readings log: filters (dates, province, sensor), 14 rows per page, Export CSV of the whole filtered set. *@
+@* W7 Readings log: filters (dates, province, sensor), 14 rows per page with Newer / Older, Export CSV of the whole filtered set (up to 7 days).
+   A page reads only its own rows, so it stays fast however many readings the gateway has written. *@
 @model ReadingsPageDto
 @{
     ViewData["Title"] = "Readings log";
@@ -11,10 +12,6 @@
     string Shown(DateTime? d) => d?.ToString("yyyy-MM-dd HH:mm") ?? "Any";
     var allLabel = Model.Provinces.Count == 3 ? "All three provinces" : "All provinces";
     var provinceName = Model.Provinces.FirstOrDefault(p => p.SiteId == f.SiteId).Name ?? allLabel;
-
-    // page numbers to show: first, last and the ones around the current page, with gaps marked
-    var pages = new SortedSet<int> { 1, Model.PageCount, Model.Page - 1, Model.Page, Model.Page + 1 };
-    pages.RemoveWhere(p => p < 1 || p > Model.PageCount);
 }
 @section Right {
   <a class="btn" asp-action="Export" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId">Export CSV</a>
@@ -31,12 +28,13 @@
     @foreach (var s in Model.SensorIds){<option value="@s" selected="@(s == f.SensorId)">@s</option>}</select></div></div>
   <div class="row" style="margin-left:auto;gap:10px">
     <a class="btn ghost" asp-action="Index">Reset</a><button class="btn dark" type="submit">Apply filters</button></div>
+  @if (Model.Error is not null){<div class="errtext" style="flex-basis:100%;font-size:12px;font-weight:600;margin-top:0">@Model.Error</div>}
 </div>
 </form>
 
 <div class="card">
   <div class="cardhead">
-    <div class="h3">@Model.Title</div>
+    <div class="h3">Readings, newest first</div>
     <div class="cap">@Model.Caption</div></div>
   <div class="tablewrap">
     <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
@@ -48,20 +46,15 @@
     }
     </tbody></table>
   </div>
-  @if (Model.Rows.Count == 0){<div class="cap" style="padding:30px 0">No readings match these filters.</div>}
+  @if (Model.Rows.Count == 0 && Model.Error is null){<div class="cap" style="padding:30px 0">No readings match these filters.</div>}
   <div class="pager">
-    <div class="cap">Showing @Model.FromIndex – @Model.ToIndex of @Model.Total.ToString("N0") readings</div>
+    <div class="cap">@(Model.Rows.Count == 0 ? "No readings on this page" : $"Showing {Model.Rows.Count} readings, from {Model.Rows[^1].Timestamp} to {Model.Rows[0].Timestamp}")</div>
     <div class="cap">Empty cells mean no reading was received, which is different from a reading of zero.</div>
     <div class="btns">
-      <a class="btn ghost sm" asp-action="Index" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId" asp-route-page="@Math.Max(1, Model.Page - 1)">Previous</a>
-      @{ var prev = 0; }
-      @foreach (var p in pages)
-      {
-        if (p - prev > 1){<span class="cap" style="align-self:center">…</span>}
-        prev = p;
-        <a class="btn @(p == Model.Page ? "dark" : "ghost") sm" asp-action="Index" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId" asp-route-page="@p">@p</a>
-      }
-      <a class="btn ghost sm" asp-action="Index" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId" asp-route-page="@Math.Min(Model.PageCount, Model.Page + 1)">Next</a>
+      @* the keys are push IDs: they are case-sensitive, so the links keep them exactly as they are *@
+      @if (!Model.IsNewest){<a class="btn ghost sm" asp-action="Index" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId">Newest</a>}
+      @if (Model.NewerKey is not null){<a class="btn ghost sm" asp-action="Index" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId" asp-route-after="@Model.NewerKey">Newer</a>}
+      @if (Model.OlderKey is not null){<a class="btn ghost sm" asp-action="Index" asp-route-from="@Local(f.From)" asp-route-to="@Local(f.To)" asp-route-site="@f.SiteId" asp-route-sensor="@f.SensorId" asp-route-before="@Model.OlderKey">Older</a>}
     </div>
   </div>
 </div>

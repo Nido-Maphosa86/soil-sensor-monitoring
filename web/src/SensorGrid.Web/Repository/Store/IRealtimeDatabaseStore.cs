@@ -18,10 +18,12 @@ public interface IRealtimeDatabaseStore
     Task<JsonNode?> GetAsync(string path, CancellationToken ct = default);
 
     /// <summary>
-    /// Children of a path ordered by key (REST: orderBy="$key"). startAt and endAt are inclusive; limitToLast keeps the last N.
-    /// Used for the gateway's readings, whose keys are push IDs that start with their time, so a period is a key range.
+    /// Children of a path ordered by key (REST: orderBy="$key"). startAt and endAt are inclusive; limitToLast keeps the last N and
+    /// limitToFirst the first N (use one of the two). Used for the gateway's readings, whose keys are push IDs that start with their time,
+    /// so a period is a key range.
     /// </summary>
-    Task<IReadOnlyList<KeyValuePair<string, JsonNode?>>> QueryByKeyAsync(string path, string? startAt = null, string? endAt = null, int? limitToLast = null, CancellationToken ct = default);
+    Task<IReadOnlyList<KeyValuePair<string, JsonNode?>>> QueryByKeyAsync(string path, string? startAt = null, string? endAt = null, int? limitToLast = null,
+        CancellationToken ct = default, int? limitToFirst = null);
 
     /// <summary>Replaces the JSON at a path (REST PUT). A null value deletes the path.</summary>
     Task SetAsync(string path, JsonNode? json, CancellationToken ct = default);

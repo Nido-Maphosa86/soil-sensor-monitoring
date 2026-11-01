@@ -60,15 +60,15 @@ public sealed class AuthService : IAuthService
         return user is { Status: AccountStatus.Active } ? ToContext(user) : null;
     }
 
-    public async Task<IReadOnlyList<string>> ChangePasswordAsync(string userId, string? current, string? next, string? confirm)
+    public async Task<IReadOnlyDictionary<string, string>> ChangePasswordAsync(string userId, string? current, string? next, string? confirm)
     {
-        var errors = new List<string>();
+        var errors = new Dictionary<string, string>();
         var user = await _users.GetAsync(userId);
-        if (user is null) return new[] { "Account not found." };
-        if (string.IsNullOrEmpty(current)) errors.Add("The current password is not correct.");
-        if (!PasswordRule.IsStrong(next))
-            errors.Add("The new password is too weak. " + PasswordRule.Description);
-        if (next != confirm) errors.Add("The new password and the confirmation do not match.");
+        if (user is null) return new Dictionary<string, string> { [""] = "Account not found." };
+        if (string.IsNullOrEmpty(current)) errors["current"] = "Enter your current password.";
+        if (!PasswordRule.IsStrong(next)) errors["next"] = "The new password is too weak. Follow the rule below.";
+        else if (next == current) errors["next"] = "The new password must be different from the current one.";
+        if (next != confirm) errors["confirm"] = "The new password and the confirmation do not match.";
         if (errors.Count > 0) return errors;
 
         try
@@ -77,11 +77,11 @@ public sealed class AuthService : IAuthService
         }
         catch (AuthFailedException)
         {
-            errors.Add("The current password is not correct.");
+            errors["current"] = "The current password is not correct.";
         }
         catch (Exception e) when (e is AuthGatewayException or HttpRequestException or TaskCanceledException)
         {
-            errors.Add("The password could not be changed right now. Please try again in a few minutes.");
+            errors[""] = "The password could not be changed right now. Please try again in a few minutes.";
         }
         return errors;
     }

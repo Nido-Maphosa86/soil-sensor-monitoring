@@ -197,6 +197,28 @@ public sealed class ReadingRepository : IReadingRepository
         return rows.Select(r => Map(locationId, sensorId, r.Value)).ToList();
     }
 
+    public async Task<IReadOnlyList<(string Key, Reading Reading)>> PageAsync(string locationId, string sensorId, DateTime fromUtc, DateTime toUtc,
+        string? beforeKey, string? afterKey, int count, CancellationToken ct = default)
+    {
+        var first = PushIds.TimePrefix(fromUtc);
+        var last = PushIds.TimePrefix(toUtc) + new string(PushIds.LastChar, 12);
+        IReadOnlyList<KeyValuePair<string, JsonNode?>> rows;
+        if (afterKey is not null)
+        {
+            // the key range is inclusive, so one extra row is asked for and the cursor row itself is dropped
+            var start = string.CompareOrdinal(afterKey, first) > 0 ? afterKey : first;
+            rows = await _store.QueryByKeyAsync($"readings/{sensorId}/history", start, last, ct: ct, limitToFirst: count + 1);
+            rows = rows.Where(r => string.CompareOrdinal(r.Key, afterKey) > 0).Take(count).ToList();
+        }
+        else
+        {
+            var end = beforeKey is not null && string.CompareOrdinal(beforeKey, last) < 0 ? beforeKey : last;
+            rows = await _store.QueryByKeyAsync($"readings/{sensorId}/history", first, end, count + 1, ct);
+            rows = rows.Where(r => beforeKey is null || string.CompareOrdinal(r.Key, beforeKey) < 0).TakeLast(count).ToList();
+        }
+        return rows.Select(r => (r.Key, Map(locationId, sensorId, r.Value))).ToList();
+    }
+
     public async Task<Reading?> LatestAsync(string locationId, string sensorId, CancellationToken ct = default)
     {
         var node = await _store.GetAsync($"readings/{sensorId}/latest", ct);

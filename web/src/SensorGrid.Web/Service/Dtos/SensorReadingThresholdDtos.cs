@@ -10,10 +10,14 @@ public sealed record SensorsPageDto(string Subtitle, IReadOnlyList<SensorChipDto
 /// <summary>Another sensor already uses the Modbus slave id the person typed.</summary>
 public sealed record SlaveConflict(string SensorId, int SlaveId, int NextFree);
 public sealed record RegisterResult(bool Success, IReadOnlyDictionary<string, string> Errors, SlaveConflict? Conflict);
-public sealed record ReadingFilter(DateTime? From, DateTime? To, string? SiteId, string? SensorId, int Page);
+/// <summary>The Readings log filters. Before / After are the key (push ID) of the row the page continues from (Older / Newer); none = the newest rows.</summary>
+public sealed record ReadingFilter(DateTime? From, DateTime? To, string? SiteId, string? SensorId, string? Before = null, string? After = null);
 public sealed record ReadingRowDto(string Timestamp, string Province, string Sensor, IReadOnlyList<string> Values);
-public sealed record ReadingsPageDto(ReadingFilter Filter, string Title, string Caption, IReadOnlyList<ReadingRowDto> Rows, int Page, int PageCount, int Total, int FromIndex, int ToIndex,
+/// <summary>One page of the Readings log. OlderKey / NewerKey are null when there is no page in that direction. Error explains a filter that cannot be used.</summary>
+public sealed record ReadingsPageDto(ReadingFilter Filter, string Caption, IReadOnlyList<ReadingRowDto> Rows, string? OlderKey, string? NewerKey, bool IsNewest, string? Error,
     IReadOnlyList<(string SiteId, string Name)> Provinces, IReadOnlyList<string> SensorIds);
+/// <summary>The CSV file of an export, or the reason it was not made (for example a period longer than 7 days).</summary>
+public sealed record ReadingsExport(byte[]? Csv, string? Error);
 public sealed record ThresholdCardDto(MeasuredParameter Parameter, string Label, string Unit, string Min, string Max, string Current, int Position, string Colour, string? Error);
 public sealed record ThresholdEditorDto(string SiteId, IReadOnlyList<(string SiteId, string Name)> Provinces, string Crop, string Basis, string Caption, IReadOnlyList<ThresholdCardDto> Cards, string? BasisError = null);
 public sealed record SaveThresholdsResult(bool Success, ThresholdEditorDto Editor);

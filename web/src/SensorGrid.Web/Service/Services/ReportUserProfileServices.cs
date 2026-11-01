@@ -89,18 +89,18 @@ public sealed class ReportService : IReportService
         string label;
         if (kind == ReportKind.RawReadings)
         {
-            if (format == ReportFormat.Pdf) return new GenerateReportResult(false, "Raw readings can only be exported as CSV.", null);
+            if (format == ReportFormat.Pdf) return new GenerateReportResult(false, "Raw readings can only be exported as CSV.", null, "format");
             var today = Display.Local(_clock.UtcNow).Date;
-            if (from is null) return new GenerateReportResult(false, "Choose the first day of the raw readings.", null);
+            if (from is null) return new GenerateReportResult(false, "Choose the first day of the raw readings.", null, "from");
             first = from.Value.Date;
-            if (first > today) return new GenerateReportResult(false, "The first day cannot be in the future.", null);
-            if (first < today.AddDays(-RawReadingsLookBackDays)) return new GenerateReportResult(false, $"The first day can be at most {RawReadingsLookBackDays} days ago.", null);
+            if (first > today) return new GenerateReportResult(false, "The first day cannot be in the future.", null, "from");
+            if (first < today.AddDays(-RawReadingsLookBackDays)) return new GenerateReportResult(false, $"The first day can be at most {RawReadingsLookBackDays} days ago.", null, "from");
             last = first.AddDays(RawReadingsDays - 1);
             label = PeriodText(first, last);
         }
         else
         {
-            if (period is null || Periods().All(p => p.Value != period)) return new GenerateReportResult(false, "Choose a month.", null);
+            if (period is null || Periods().All(p => p.Value != period)) return new GenerateReportResult(false, "Choose a month.", null, "period");
             (first, last) = Month(period);
             label = Periods().First(p => p.Value == period).Label;
         }

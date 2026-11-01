@@ -18,7 +18,8 @@ public interface IAuthService
     Task<UserContext?> RefreshAsync(string userId);
 
     /// <summary>Changes the password. Returns error messages; empty means success.</summary>
-    Task<IReadOnlyList<string>> ChangePasswordAsync(string userId, string? current, string? next, string? confirm);
+    /// <summary>Changes the password. Returns the errors by field ("current", "next", "confirm", or "" for the whole form); none means it changed.</summary>
+    Task<IReadOnlyDictionary<string, string>> ChangePasswordAsync(string userId, string? current, string? next, string? confirm);
 
     /// <summary>Always finishes the same way, whether or not the email exists.</summary>
     Task RequestPasswordResetAsync(string? email);
@@ -55,12 +56,16 @@ public interface ISensorService
 
 public interface IReadingService
 {
-    /// <summary>The filter used when the page first opens: the last 7 days.</summary>
+    /// <summary>The filter used when the page first opens: the last 24 hours.</summary>
     ReadingFilter DefaultFilter();
 
     ReadingFilter FilterForRange(string? range, string? siteId = null);
-    Task<ReadingsPageDto> GetPageAsync(UserContext ctx, ReadingFilter filter);
-    Task<byte[]> ExportCsvAsync(UserContext ctx, ReadingFilter filter);
+
+    /// <summary>One page of readings (newest first). exportError is shown when Export CSV was refused for these filters.</summary>
+    Task<ReadingsPageDto> GetPageAsync(UserContext ctx, ReadingFilter filter, string? exportError = null);
+
+    /// <summary>The whole filtered period as CSV, or the reason it cannot be exported (at most 7 days).</summary>
+    Task<ReadingsExport> ExportCsvAsync(UserContext ctx, ReadingFilter filter);
 }
 
 public interface IThresholdService
