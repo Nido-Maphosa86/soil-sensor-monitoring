@@ -16,7 +16,6 @@ public class AppUser
     public DateTime? LastActiveAt { get; set; }                      // null until the first sign in
     public bool NotifyBreach { get; set; } = true;                   // wants a notification when a reading breaches a band
     public bool NotifyOffline { get; set; } = true;                  // wants a notification when a sensor goes offline
-    public bool NotifyDaily { get; set; }                            // wants the daily summary
     /// <summary>The location ids assigned to this person (user_locations). Administrators always see all.</summary>
     public List<string> SiteIds { get; set; } = new();               // for example ["FS", "GP"]
 }
@@ -49,11 +48,10 @@ public class Sensor
     public DateTime InstalledDate { get; set; }
     public int DepthCm { get; set; } = 15;               // depth below the surface, in centimetres
     public int ModbusSlaveId { get; set; }               // address on the RS485 bus; unique within a site
-    public string Firmware { get; set; } = "v2.4.1";
 }
 /// <summary>
 /// When a sensor last reported: the timestamp of readings/{sensor_id}/latest. The gateway sends nothing else about the sensor's health
-/// (no battery, signal or power status), so this is all the app knows. Two hours without a row means Offline.
+/// (no battery, signal or power status), so this is all the app knows. One minute without a row means Offline.
 /// </summary>
 public class SensorStatus
 {
@@ -149,19 +147,41 @@ public class Notification
     public DateTime? ReadAt { get; set; }
 }
 
-/// <summary>reports/{report_id} plus report_locations. The file itself lives in Cloud Storage (or App_Data/reports on the web server).</summary>
+/// <summary>
+/// reports/{report_id} plus report_locations. Only the description of the report is stored: the file is built from the data
+/// at the moment it is downloaded, so there is no file to keep (the free hosting wipes its disk on every restart).
+/// </summary>
 public class Report
 {
     public string ReportId { get; set; } = "";
     public string GeneratedBy { get; set; } = "";        // user id of the person who generated it
-    public string Name { get; set; } = "";               // for example "Monthly nutrient summary — October 2026"
+    public string Name { get; set; } = "";               // for example "Monthly summary — October 2026"
     public ReportKind Kind { get; set; }
     public ReportFormat Format { get; set; }             // PDF or CSV
-    public DateTime PeriodStart { get; set; }            // the month the report covers
-    public DateTime PeriodEnd { get; set; }
+    public DateTime PeriodStart { get; set; }            // the first day the report covers (a date only)
+    public DateTime PeriodEnd { get; set; }              // the last day the report covers (a date only)
     public DateTime GeneratedAt { get; set; }
-    public string FilePath { get; set; } = "";           // where the file is stored
-    public long SizeBytes { get; set; }
     public List<string> SiteIds { get; set; } = new();   // the provinces included in the report
+}
+
+/// <summary>
+/// daily_stats/{sensor_id}/{yyyy-MM-dd}. The figures of one sensor for one South African day, worked out once from that day's readings
+/// and saved, so a month of figures is about 30 small records instead of hundreds of thousands of readings.
+/// Only finished days are saved (today keeps changing, so it is always worked out from the readings). Rows of zeros are left out.
+/// </summary>
+public class DailyStats
+{
+    public string SensorId { get; set; } = "";
+    public DateTime Day { get; set; }                    // the South African day (a date only)
+    public int Readings { get; set; }                    // readings counted (rows of zeros left out)
+    public int InRange { get; set; }                     // readings with every value inside its band (bands as they were when the day was saved)
+    /// <summary>Lowest, total and highest of each parameter. The average is Sum / Readings.</summary>
+    public Dictionary<MeasuredParameter, (double Min, double Sum, double Max)> Values { get; set; } = new();
+    public DateTime? FirstAt { get; set; }               // the first reading of the day (null when there was none)
+    public DateTime? LastAt { get; set; }                // the last reading of the day
+    public TimeSpan LongestGap { get; set; }             // the longest silence between two readings of the day
+    public TimeSpan Offline { get; set; }                // the time the sensor counted as offline (silences of 1 minute or more)
+
+    public double? Average(MeasuredParameter p) => Readings > 0 && Values.TryGetValue(p, out var v) ? v.Sum / Readings : null;
 }
 

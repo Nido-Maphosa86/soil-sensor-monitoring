@@ -10,7 +10,8 @@ public sealed record InRangeDto(string Name, int Percent, Tone Tone, bool IsTota
 public sealed record SummaryRowDto(string Province, string Readings, string Moisture, string Temperature, string Ph, string Breaches, string LongestGap, string Uptime);
 public sealed record GeneratedReportDto(string ReportId, string Name, string Meta, string By);
 public sealed record ReportsPageDto(string Subtitle, string Period, string PeriodLabel, IReadOnlyList<(string Value, string Label)> Periods,
-    IReadOnlyList<NutrientGroupDto> Nutrients, IReadOnlyList<InRangeDto> InRange, IReadOnlyList<SummaryRowDto> Summary, IReadOnlyList<GeneratedReportDto> Generated);
+    IReadOnlyList<NutrientGroupDto> Nutrients, IReadOnlyList<InRangeDto> InRange, IReadOnlyList<SummaryRowDto> Summary, IReadOnlyList<GeneratedReportDto> Generated,
+    DateTime RawFrom, DateTime RawEarliest, DateTime RawLatest);
 public sealed record ReportFile(byte[] Content, string FileName, string ContentType);
 public sealed record GenerateReportResult(bool Success, string? Error, string? ReportId);
 public sealed record RoleCardDto(string Role, string Count, Tone Tone, IReadOnlyList<string> Permissions);
@@ -19,4 +20,4 @@ public sealed record UsersPageDto(string Subtitle, IReadOnlyList<RoleCardDto> Ro
 /// <summary>Result of saving an account: success, the error for each field, and an optional message to show (for example "the email could not be sent").</summary>
 public sealed record UserSaveResult(bool Success, IReadOnlyDictionary<string, string> Errors, string? Notice = null);
 public sealed record ProfileDto(string Name, string Initials, string Email, string RoleLabel, bool IsAdmin, IReadOnlyList<(string Name, string Colour)> Provinces,
-    string LastSignIn, string Created, string PasswordChanged, bool NotifyBreach, bool NotifyOffline, bool NotifyDaily);
+    string LastSignIn, string Created, string PasswordChanged, bool NotifyBreach, bool NotifyOffline);

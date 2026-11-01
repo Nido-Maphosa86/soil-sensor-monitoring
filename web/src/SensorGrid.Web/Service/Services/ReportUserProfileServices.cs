@@ -1,6 +1,7 @@
-// What this file is for: the Reports page and file downloads, user account management (administrators only), and the Profile page.
-// How it fits in: Service folder. Reports only ever contain data from the provinces of the person asking; report files are saved through IReportFileStore
-// (Cloud Storage, or App_Data/reports on the web server) and the report record in the database only holds the file path.
+// What this file is for: the Reports page and report downloads, user account management (administrators only), and the Profile page.
+// How it fits in: Service folder. Reports only ever contain data from the provinces of the person asking. Only the description of a report is
+// stored (reports/{id}); the PDF or CSV is built from the data at the moment it is downloaded, so no file is kept anywhere.
+// The month's figures come from DailyFigures (one small record per sensor per day), never from a whole month of raw readings.
 using System.Globalization;
 using SensorGrid.Domain;
 using SensorGrid.Repository;
@@ -9,25 +10,35 @@ namespace SensorGrid.Service;
 
 public sealed class ReportService : IReportService
 {
+    /// <summary>A raw readings export covers at most this many days (a reading every 6 seconds is about 14,400 rows a day per sensor).</summary>
+    public const int RawReadingsDays = 7;
+
+    /// <summary>How far back a raw readings export may start.</summary>
+    private const int RawReadingsLookBackDays = 90;
+
     private readonly DataScope _scope;
     private readonly SensorLookup _lookup;
+    private readonly DailyFigures _daily;
+    private readonly ILocationRepository _locations;
+    private readonly ISensorRepository _sensors;
     private readonly IAlertRepository _alerts;
     private readonly IReportRepository _reports;
-    private readonly IReportFileStore _files;
     private readonly IUserRepository _users;
     private readonly Analytics _analytics;
     private readonly ICsvWriter _csv;
     private readonly IPdfWriter _pdf;
     private readonly IClock _clock;
 
-    public ReportService(DataScope scope, SensorLookup lookup, IAlertRepository alerts, IReportRepository reports, IReportFileStore files, IUserRepository users,
-        Analytics analytics, ICsvWriter csv, IPdfWriter pdf, IClock clock)
+    public ReportService(DataScope scope, SensorLookup lookup, DailyFigures daily, ILocationRepository locations, ISensorRepository sensors, IAlertRepository alerts,
+        IReportRepository reports, IUserRepository users, Analytics analytics, ICsvWriter csv, IPdfWriter pdf, IClock clock)
     {
         _scope = scope;
         _lookup = lookup;
+        _daily = daily;
+        _locations = locations;
+        _sensors = sensors;
         _alerts = alerts;
         _reports = reports;
-        _files = files;
         _users = users;
         _analytics = analytics;
         _csv = csv;
@@ -49,176 +60,274 @@ public sealed class ReportService : IReportService
     {
         var periods = Periods();
         if (period is null || periods.All(p => p.Value != period)) period = periods[0].Value;
-        var data = await AnalyseAsync(ctx, period);
         var sites = await _scope.VisibleSitesAsync(ctx);
+        var (first, last) = Month(period);
+        var data = await AnalyseAsync(sites, first, last);
         var visibleIds = sites.Select(s => s.SiteId).ToHashSet();
         var userNames = (await _users.GetAllAsync()).ToDictionary(u => u.UserId, u => u.Name);
 
         var generated = (await _reports.GetAllAsync())
             .Where(r => ctx.IsAdmin || r.GeneratedBy == ctx.UserId || (r.SiteIds.Count > 0 && r.SiteIds.All(visibleIds.Contains)))
             .OrderByDescending(r => r.GeneratedAt)
-            .Select(r => new GeneratedReportDto(r.ReportId, r.Name, $"{TreeText(r.Format)} · {Display.Size(r.SizeBytes)}",
+            .Select(r => new GeneratedReportDto(r.ReportId, r.Name, $"{TreeText(r.Format)} · {PeriodText(r.PeriodStart, r.PeriodEnd)}",
                 $"Generated {Display.Local(r.GeneratedAt).ToString("d MMMM", Display.Culture)} by {userNames.GetValueOrDefault(r.GeneratedBy, "unknown")}")).ToList();
 
         var words = new[] { "no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine" };
         var subtitle = $"Nutrient and moisture analysis across {(sites.Count < words.Length ? words[sites.Count] : sites.Count.ToString())} {(sites.Count == 1 ? "site" : "sites")}";
-        return new ReportsPageDto(subtitle, period, periods.First(p => p.Value == period).Label, periods, data.Nutrients, data.InRange, data.Summary, generated);
+        var today = Display.Local(_clock.UtcNow).Date;
+        return new ReportsPageDto(subtitle, period, periods.First(p => p.Value == period).Label, periods, data.Nutrients, data.InRange, data.Summary, generated,
+            today.AddDays(1 - RawReadingsDays), today.AddDays(-RawReadingsLookBackDays), today);
     }
 
-    /// <summary>Builds the file, saves it, then records the report and its locations together. Raw readings are CSV only.</summary>
-    public async Task<GenerateReportResult> GenerateAsync(UserContext ctx, ReportKind kind, ReportFormat format, string? period)
+    /// <summary>
+    /// Records a report (what it covers and for which provinces). Nothing is built yet: the file is made when it is downloaded.
+    /// The monthly summary and the breach log cover a month; raw readings (CSV only) cover 7 days from the chosen first day.
+    /// </summary>
+    public async Task<GenerateReportResult> GenerateAsync(UserContext ctx, ReportKind kind, ReportFormat format, string? period, DateTime? from)
     {
-        if (period is null || Periods().All(p => p.Value != period)) return new GenerateReportResult(false, "Choose a month.", null);
-        if (kind == ReportKind.RawReadings && format == ReportFormat.Pdf) return new GenerateReportResult(false, "Raw readings can only be exported as CSV.", null);
-
-        var label = Periods().First(p => p.Value == period).Label;
-        var title = kind switch { ReportKind.NutrientSummary => "Monthly nutrient summary", ReportKind.RawReadings => "Raw readings export", _ => "Threshold breach log" };
-        var start = DateTime.ParseExact(period, "yyyy-MM", CultureInfo.InvariantCulture);
-        var sites = (await _scope.VisibleSitesAsync(ctx)).Select(s => s.SiteId).ToList();
-        var id = PushIds.At(_clock.UtcNow);
-        var ext = format == ReportFormat.Csv ? "csv" : "pdf";
-
-        var report = new Report
+        DateTime first, last;
+        string label;
+        if (kind == ReportKind.RawReadings)
         {
-            ReportId = id, GeneratedBy = ctx.UserId, Name = $"{title} — {label}", Kind = kind, Format = format, PeriodStart = start,
-            PeriodEnd = start.AddMonths(1).AddDays(-1), GeneratedAt = _clock.UtcNow, FilePath = $"reports/{id}.{ext}", SiteIds = sites
-        };
-        var bytes = await BuildAsync(ctx, report, period);
-        report.SizeBytes = bytes.LongLength;
-        await _files.SaveAsync(report.FilePath, bytes, format == ReportFormat.Csv ? "text/csv" : "application/pdf");
-        await _reports.AddAsync(report);
+            if (format == ReportFormat.Pdf) return new GenerateReportResult(false, "Raw readings can only be exported as CSV.", null);
+            var today = Display.Local(_clock.UtcNow).Date;
+            if (from is null) return new GenerateReportResult(false, "Choose the first day of the raw readings.", null);
+            first = from.Value.Date;
+            if (first > today) return new GenerateReportResult(false, "The first day cannot be in the future.", null);
+            if (first < today.AddDays(-RawReadingsLookBackDays)) return new GenerateReportResult(false, $"The first day can be at most {RawReadingsLookBackDays} days ago.", null);
+            last = first.AddDays(RawReadingsDays - 1);
+            label = PeriodText(first, last);
+        }
+        else
+        {
+            if (period is null || Periods().All(p => p.Value != period)) return new GenerateReportResult(false, "Choose a month.", null);
+            (first, last) = Month(period);
+            label = Periods().First(p => p.Value == period).Label;
+        }
+
+        var title = kind switch { ReportKind.MonthlySummary => "Monthly summary", ReportKind.RawReadings => "Raw readings", _ => "Threshold breach log" };
+        var id = PushIds.At(_clock.UtcNow);
+        await _reports.AddAsync(new Report
+        {
+            ReportId = id, GeneratedBy = ctx.UserId, Name = $"{title} — {label}", Kind = kind, Format = format, PeriodStart = first, PeriodEnd = last,
+            GeneratedAt = _clock.UtcNow, SiteIds = (await _scope.VisibleSitesAsync(ctx)).Select(s => s.SiteId).ToList()
+        });
         return new GenerateReportResult(true, null, id);
     }
 
-    /// <summary>The stored file. Only an administrator, the person who made it, or someone who can open all its provinces may download it.</summary>
+    /// <summary>
+    /// Builds the report file now, from the data of its provinces. Only an administrator, the person who made it, or someone who can open
+    /// all its provinces may download it.
+    /// </summary>
     public async Task<ReportFile> DownloadAsync(UserContext ctx, string reportId)
     {
         var report = await _reports.GetAsync(reportId) ?? throw new NotFoundException("That report was not found.");
         if (!ctx.IsAdmin && report.GeneratedBy != ctx.UserId && !report.SiteIds.All(ctx.CanSee)) throw new NotFoundException("That report was not found.");
-        var content = await _files.ReadAsync(report.FilePath) ?? throw new NotFoundException("The file of this report is not available.");
+        var content = await BuildAsync(report);
         var ext = report.Format == ReportFormat.Csv ? "csv" : "pdf";
         return new ReportFile(content, $"{report.Name.Replace(" — ", "-").Replace(' ', '-')}.{ext}", report.Format == ReportFormat.Csv ? "text/csv" : "application/pdf");
     }
 
     private static string TreeText(ReportFormat f) => f == ReportFormat.Pdf ? "PDF" : "CSV";
 
-    private async Task<byte[]> BuildAsync(UserContext ctx, Report report, string period)
-    {
-        var data = await AnalyseAsync(ctx, period);
-        var (from, to) = Window(period);
-        var sites = await _scope.VisibleSitesAsync(ctx);
-        var siteNames = sites.ToDictionary(s => s.SiteId, s => s.Name);
-        var sensors = (await _scope.VisibleSensorsAsync(ctx)).ToList();
+    /// <summary>"1 to 31 October 2026", or "28 October to 3 November 2026".</summary>
+    private static string PeriodText(DateTime first, DateTime last) =>
+        first.Month == last.Month && first.Year == last.Year
+            ? $"{first.Day} to {last.ToString("d MMMM yyyy", Display.Culture)}"
+            : $"{first.ToString("d MMMM", Display.Culture)} to {last.ToString("d MMMM yyyy", Display.Culture)}";
 
-        List<string> header;
-        List<List<string>> rows;
+    /// <summary>The first and last day of a month written as yyyy-MM.</summary>
+    private static (DateTime First, DateTime Last) Month(string period)
+    {
+        var start = DateTime.ParseExact(period, "yyyy-MM", CultureInfo.InvariantCulture);
+        return (start, start.AddMonths(1).AddDays(-1));
+    }
+
+    private async Task<byte[]> BuildAsync(Report report)
+    {
+        var sites = (await _locations.GetAllAsync()).Where(s => report.SiteIds.Contains(s.SiteId)).ToList();
+        var sensors = (await _sensors.GetAllAsync()).Where(s => report.SiteIds.Contains(s.SiteId)).ToList();
+        var siteNames = sites.ToDictionary(s => s.SiteId, s => s.Name);
+        var fromUtc = DailyFigures.DayStartUtc(report.PeriodStart);
+        var toUtc = DailyFigures.DayEndUtc(report.PeriodEnd);
+
         switch (report.Kind)
         {
             case ReportKind.RawReadings:
             {
-                header = new List<string> { "Timestamp", "Province", "Sensor" };
+                // reports made before the 7-day limit may cover a whole month: they give its last 7 days
+                var first = report.PeriodEnd.AddDays(1 - RawReadingsDays) > report.PeriodStart ? report.PeriodEnd.AddDays(1 - RawReadingsDays) : report.PeriodStart;
+                var header = new List<string> { "Timestamp", "Province", "Sensor" };
                 header.AddRange(ParameterCatalog.Readings.Select(i => $"{i.Short} ({i.Unit})"));
-                var all = (await _lookup.ReadingsAsync(sensors, from, to)).Values.SelectMany(x => x).OrderBy(r => r.Timestamp).ThenBy(r => r.SensorId, StringComparer.Ordinal);
-                rows = all.Select(r => new[] { Display.Local(r.Timestamp).ToString("yyyy-MM-dd HH:mm:ss"), siteNames[r.SiteId], r.SensorId }
-                    .Concat(ParameterCatalog.Readings.Select(i => r.ValueOf(i.Parameter).ToString(CultureInfo.InvariantCulture))).ToList()).ToList();
-                break;
+                var all = (await _lookup.ReadingsAsync(sensors, DailyFigures.DayStartUtc(first), toUtc.AddMilliseconds(-1))).Values.SelectMany(x => x)
+                    .OrderBy(r => r.Timestamp).ThenBy(r => r.SensorId, StringComparer.Ordinal);
+                var rows = all.Select(r => new[] { Display.Local(r.Timestamp).ToString("yyyy-MM-dd HH:mm:ss"), siteNames[r.SiteId], r.SensorId }
+                    .Concat(ParameterCatalog.Readings.Select(i => r.ValueOf(i.Parameter).ToString(CultureInfo.InvariantCulture))));
+                return _csv.Write(header, rows);
             }
+
             case ReportKind.BreachLog:
             {
-                header = new List<string> { "Raised", "Type", "Severity", "Sensor", "Parameter", "Reading", "Limit", "Status" };
-                rows = (await _alerts.GetAllAsync(sites.Select(s => s.SiteId))).Where(a => a.RaisedAt >= from && a.RaisedAt < to).OrderBy(a => a.RaisedAt).Select(a =>
-                    new List<string>
-                    {
-                        Display.Local(a.RaisedAt).ToString("yyyy-MM-dd HH:mm"), a.AlertType.ToString(), a.AlertType == AlertType.Offline ? "—" : a.Severity.ToString(), a.SensorId,
-                        a.Parameter is { } p ? ParameterCatalog.Get(p).Short : "—", a.ReadingValue?.ToString(CultureInfo.InvariantCulture) ?? "—",
-                        a.ThresholdValue is { } t ? (a.ThresholdIsMax ? "max " : "min ") + t.ToString(CultureInfo.InvariantCulture) : "—", a.Status.ToString()
-                    }).ToList();
-                break;
+                var columns = new List<(string, int)> { ("Raised", 90), ("Province", 90), ("Sensor", 60), ("Type", 60), ("Severity", 60), ("Parameter", 90), ("Reading", 70), ("Limit", 80), ("Status", 80) };
+                var rows = (await _alerts.GetAllAsync(report.SiteIds)).Where(a => a.RaisedAt >= fromUtc && a.RaisedAt < toUtc).OrderBy(a => a.RaisedAt)
+                    .Select(a => AlertRow(a, siteNames)).ToList();
+                if (report.Format == ReportFormat.Csv) return _csv.Write(columns.Select(c => c.Item1), rows);
+                var blocks = new List<PdfBlock> { new PdfText($"{PeriodText(report.PeriodStart, report.PeriodEnd)} · {string.Join(", ", sites.Select(s => s.Name))} · {rows.Count} alerts") };
+                blocks.Add(rows.Count == 0 ? new PdfText("No alerts were raised in this period.") : new PdfTable(columns, rows));
+                return _pdf.Write(report.Name, blocks);
             }
+
             default:
-                header = new List<string> { "Province", "Readings", "Moisture avg %", "Temp avg °C", "pH avg", "Nitrogen avg mg/kg", "Phosphorus avg mg/kg", "Potassium avg mg/kg", "Breaches", "Longest gap", "Uptime" };
-                rows = data.Summary.Select(s =>
+                return await MonthlySummaryAsync(report, sites, sensors, fromUtc, toUtc);
+        }
+    }
+
+    /// <summary>One row of the breach log (also used for the alerts of the monthly summary).</summary>
+    private static List<string> AlertRow(Alert a, IReadOnlyDictionary<string, string> siteNames) => new()
+    {
+        Display.Local(a.RaisedAt).ToString("yyyy-MM-dd HH:mm"), siteNames.GetValueOrDefault(a.SiteId, a.SiteId), a.SensorId, a.AlertType.ToString(),
+        a.AlertType == AlertType.Offline ? "—" : a.Severity.ToString(), a.Parameter is { } p ? ParameterCatalog.Get(p).Short : "—",
+        a.ReadingValue?.ToString(CultureInfo.InvariantCulture) ?? "—",
+        a.ThresholdValue is { } t ? (a.ThresholdIsMax ? "max " : "min ") + t.ToString(CultureInfo.InvariantCulture) : "—", a.Status.ToString()
+    };
+
+    /// <summary>
+    /// The monthly summary. PDF: for each province its bands, the month's figures, one row per day (lowest / average / highest) and its alerts.
+    /// CSV: the same day rows for every province in one table.
+    /// </summary>
+    private async Task<byte[]> MonthlySummaryAsync(Report report, IReadOnlyList<Site> sites, IReadOnlyList<Sensor> sensors, DateTime fromUtc, DateTime toUtc)
+    {
+        var now = _clock.UtcNow;
+        var days = await _daily.ForSensorsAsync(sensors.Where(s => s.IsActive), report.PeriodStart, report.PeriodEnd);
+        var bands = await _analytics.AllBandsAsync();
+        var alerts = (await _alerts.GetAllAsync(report.SiteIds)).Where(a => a.RaisedAt >= fromUtc && a.RaisedAt < toUtc).OrderBy(a => a.RaisedAt).ToList();
+        var siteNames = sites.ToDictionary(s => s.SiteId, s => s.Name);
+
+        string Mma(PeriodTotals t, MeasuredParameter p) => t.Readings == 0 ? "—"
+            : $"{Display.Value(p, t.Min(p)!.Value)} / {Display.Value(p, t.Average(p)!.Value)} / {Display.Value(p, t.Max(p)!.Value)}";
+        string Avg(PeriodTotals t, MeasuredParameter p) => t.Average(p) is { } v ? Display.Value(p, v) : "—";
+
+        // one row per day of a province: the totals of all its sensors for that day. Silent days before the first sensor was installed are left out.
+        List<List<string>> DayRows(Site site, bool withProvince)
+        {
+            var siteSensors = sensors.Where(s => s.SiteId == site.SiteId && days.ContainsKey(s.SensorId)).ToList();
+            var installed = siteSensors.Count == 0 ? DateTime.MaxValue : siteSensors.Min(s => s.InstalledDate.Date);
+            var siteDays = siteSensors.SelectMany(s => days[s.SensorId]).GroupBy(d => d.Day)
+                .Where(g => g.Key >= installed || g.Any(d => d.FirstAt is not null)).OrderBy(g => g.Key);
+            return siteDays.Select(g =>
+            {
+                var t = new PeriodTotals();
+                t.Add(g, now);
+                var dayAlerts = alerts.Count(a => a.SiteId == site.SiteId && Display.Local(a.RaisedAt).Date == g.Key);
+                var row = new List<string>();
+                if (withProvince) row.Add(site.Name);
+                row.AddRange(new[]
                 {
-                    var n = data.Nutrients.First(x => x.Province == s.Province);
-                    return new List<string> { s.Province, s.Readings, s.Moisture, s.Temperature, s.Ph, Display.Num(n.Nitrogen, 0), Display.Num(n.Phosphorus, 0), Display.Num(n.Potassium, 0), s.Breaches, s.LongestGap, s.Uptime };
-                }).ToList();
-                break;
+                    g.Key.ToString(withProvince ? "yyyy-MM-dd" : "ddd d MMM", Display.Culture), t.Readings.ToString("N0", Display.Culture), t.Readings == 0 ? "—" : $"{t.InRangePercent}%",
+                    Mma(t, MeasuredParameter.Moisture), Mma(t, MeasuredParameter.Temperature), Mma(t, MeasuredParameter.Ph), Avg(t, MeasuredParameter.Conductivity),
+                    Avg(t, MeasuredParameter.Nitrogen), Avg(t, MeasuredParameter.Phosphorus), Avg(t, MeasuredParameter.Potassium), dayAlerts.ToString()
+                });
+                return row;
+            }).ToList();
         }
 
-        if (report.Format == ReportFormat.Csv) return _csv.Write(header, rows);
-        var lines = new List<string> { string.Join("  |  ", header) };
-        lines.AddRange(rows.Take(300).Select(r => string.Join("  |  ", r)));
-        if (rows.Count == 0) lines.Add("No data is stored for this period.");
-        return _pdf.Write(report.Name, lines);
+        var dayColumns = new List<(string, int)>
+        {
+            ("Day", 70), ("Readings", 55), ("In range", 50), ("Moisture % (low/avg/high)", 120), ("Temp °C (low/avg/high)", 125),
+            ("pH (low/avg/high)", 95), ("EC µS/cm", 55), ("N mg/kg", 48), ("P mg/kg", 48), ("K mg/kg", 48), ("Alerts", 48)
+        };
+
+        if (report.Format == ReportFormat.Csv)
+        {
+            var header = new List<string> { "Province" };
+            header.AddRange(dayColumns.Select(c => c.Item1));
+            return _csv.Write(header, sites.SelectMany(s => DayRows(s, true)));
+        }
+
+        var blocks = new List<PdfBlock>
+        {
+            new PdfText($"{PeriodText(report.PeriodStart, report.PeriodEnd)}. Each day shows the lowest, average and highest value of all readings that day " +
+                        "(rows of zeros left out). In range = readings with every value inside its target band. Times are South African time.")
+        };
+        foreach (var site in sites)
+        {
+            var siteSensors = sensors.Where(s => s.SiteId == site.SiteId && s.IsActive).ToList();
+            var month = new PeriodTotals();
+            foreach (var s in siteSensors.Where(s => days.ContainsKey(s.SensorId))) month.Add(days[s.SensorId], now, s.InstalledDate);
+            var siteAlerts = alerts.Where(a => a.SiteId == site.SiteId).ToList();
+            var periodEnd = toUtc < now ? toUtc : now;
+            var gap = PeriodTotals.LongestGap(siteSensors.Where(s => days.ContainsKey(s.SensorId)).Select(s => days[s.SensorId]), periodEnd);
+            var siteBands = bands.GetValueOrDefault(site.SiteId) ?? new();
+
+            blocks.Add(new PdfHeading($"{site.Name} ({site.SiteId})"));
+            blocks.Add(new PdfText($"Sensors: {(siteSensors.Count == 0 ? "none" : string.Join(", ", siteSensors.Select(s => s.SensorId)))}. Target bands: " +
+                string.Join(", ", ParameterCatalog.Readings.Where(i => siteBands.ContainsKey(i.Parameter))
+                    .Select(i => $"{i.Short} {Display.Value(i.Parameter, siteBands[i.Parameter].MinValue)} to {Display.Value(i.Parameter, siteBands[i.Parameter].MaxValue)} {i.Unit}")) + "."));
+            blocks.Add(new PdfText(month.Readings == 0
+                ? "No readings in this period."
+                : $"Month: {month.Readings:N0} readings, {month.InRangePercent}% in range. Averages: moisture {Avg(month, MeasuredParameter.Moisture)} %, " +
+                  $"temperature {Avg(month, MeasuredParameter.Temperature)} °C, pH {Avg(month, MeasuredParameter.Ph)}, conductivity {Avg(month, MeasuredParameter.Conductivity)} µS/cm, " +
+                  $"N {Avg(month, MeasuredParameter.Nitrogen)}, P {Avg(month, MeasuredParameter.Phosphorus)}, K {Avg(month, MeasuredParameter.Potassium)} mg/kg. " +
+                  $"Breach alerts: {siteAlerts.Count(a => a.AlertType != AlertType.Offline)}. Offline alerts: {siteAlerts.Count(a => a.AlertType == AlertType.Offline)}. " +
+                  $"Longest silence: {GapText(gap)}. Uptime: {UptimeText(month)}."));
+            var rows = DayRows(site, false);
+            if (rows.Count > 0) blocks.Add(new PdfTable(dayColumns, rows));
+            if (siteAlerts.Count > 0)
+                blocks.Add(new PdfTable(new List<(string, int)> { ("Raised", 90), ("Province", 90), ("Sensor", 60), ("Type", 60), ("Severity", 60), ("Parameter", 90), ("Reading", 70), ("Limit", 80), ("Status", 80) },
+                    siteAlerts.Select(a => AlertRow(a, siteNames)).ToList()));
+        }
+        return _pdf.Write(report.Name, blocks);
     }
 
-    /// <summary>The month as UTC times: from the start of the month (South African time) to its end.</summary>
-    private static (DateTime From, DateTime To) Window(string period)
+    private static string GapText(TimeSpan gap)
     {
-        var start = DateTime.ParseExact(period, "yyyy-MM", CultureInfo.InvariantCulture);
-        return (DateTime.SpecifyKind(start - Display.SouthAfrica, DateTimeKind.Utc), DateTime.SpecifyKind(start.AddMonths(1) - Display.SouthAfrica, DateTimeKind.Utc));
+        var minutes = (int)Math.Round(gap.TotalMinutes);
+        if (minutes >= 24 * 60) return $"{minutes / (24 * 60)} d {minutes / 60 % 24} h";
+        return minutes >= 60 ? $"{minutes / 60} h {minutes % 60:00} min" : $"{minutes} min";
     }
+
+    private static string UptimeText(PeriodTotals t) => t.UptimePercent is not { } u ? "—" : u >= 99.995 ? "100%" : Display.Num(u, 1) + "%";
 
     private sealed record Analysis(IReadOnlyList<NutrientGroupDto> Nutrients, IReadOnlyList<InRangeDto> InRange, IReadOnlyList<SummaryRowDto> Summary);
 
-    /// <summary>All the numbers of one month for the provinces the person may see.</summary>
-    private async Task<Analysis> AnalyseAsync(UserContext ctx, string period)
+    /// <summary>The Reports page numbers of a month for the given provinces, from the saved day figures.</summary>
+    private async Task<Analysis> AnalyseAsync(IReadOnlyList<Site> sites, DateTime first, DateTime last)
     {
         var now = _clock.UtcNow;
-        var (from, fullTo) = Window(period);
-        var to = fullTo < now ? fullTo : now;
-        var sites = await _scope.VisibleSitesAsync(ctx);
-        var sensors = (await _scope.VisibleSensorsAsync(ctx)).Where(s => s.IsActive).ToList();
-        var bandsBySite = await _analytics.AllBandsAsync();
-        var allAlerts = await _alerts.GetAllAsync(sites.Select(s => s.SiteId));
-        var minutes = Math.Max(1, (to - from).TotalMinutes);
-        var byDay = to > from ? await _lookup.ReadingsAsync(sensors, from, to) : sensors.ToDictionary(s => s.SensorId, _ => (IReadOnlyList<Reading>)new List<Reading>());
+        var fromUtc = DailyFigures.DayStartUtc(first);
+        var toUtc = DailyFigures.DayEndUtc(last);
+        var visible = sites.Select(s => s.SiteId).ToHashSet();
+        var sensors = (await _sensors.GetAllAsync()).Where(s => s.IsActive && visible.Contains(s.SiteId)).ToList();
+        var days = await _daily.ForSensorsAsync(sensors, first, last);
+        var allAlerts = await _alerts.GetAllAsync(visible);
 
         var nutrients = new List<NutrientGroupDto>();
         var inRange = new List<InRangeDto>();
         var summary = new List<SummaryRowDto>();
-        int totalReadings = 0, totalInRange = 0;
+        var all = new PeriodTotals();
 
         foreach (var site in sites)
         {
             var siteSensors = sensors.Where(s => s.SiteId == site.SiteId).ToList();
-            var mine = siteSensors.SelectMany(s => byDay[s.SensorId]).ToList();
-            double Avg(Func<Reading, double> f) => mine.Count == 0 ? 0 : mine.Average(f);
-            nutrients.Add(new NutrientGroupDto(site.Name, Math.Round(Avg(r => r.Nitrogen)), Math.Round(Avg(r => r.Phosphorus)), Math.Round(Avg(r => r.Potassium))));
+            var t = new PeriodTotals();
+            foreach (var s in siteSensors)
+            {
+                t.Add(days[s.SensorId], now, s.InstalledDate);
+                all.Add(days[s.SensorId], now, s.InstalledDate);
+            }
+            double Avg(MeasuredParameter p) => t.Average(p) ?? 0;
+            nutrients.Add(new NutrientGroupDto(site.Name, Math.Round(Avg(MeasuredParameter.Nitrogen)), Math.Round(Avg(MeasuredParameter.Phosphorus)), Math.Round(Avg(MeasuredParameter.Potassium))));
+            inRange.Add(new InRangeDto(site.Name, t.InRangePercent, SiteMetrics.StatusFor(t.InRangePercent).Tone, false));
 
-            var bands = bandsBySite.GetValueOrDefault(site.SiteId) ?? new();
-            var good = mine.Count(r => Analytics.IsInRange(r, bands));
-            totalReadings += mine.Count;
-            totalInRange += good;
-            var pct = mine.Count == 0 ? 0 : (int)Math.Round(100.0 * good / mine.Count);
-            inRange.Add(new InRangeDto(site.Name, pct, SiteMetrics.StatusFor(pct).Tone, false));
-
-            var breaches = allAlerts.Count(a => a.SiteId == site.SiteId && a.AlertType != AlertType.Offline && a.RaisedAt >= from && a.RaisedAt < fullTo);
-            var expected = siteSensors.Count * minutes / 30.0;
-            var uptime = expected <= 0 ? 0 : Math.Min(100.0, 100.0 * mine.Count / expected);
-            summary.Add(new SummaryRowDto(site.Name, mine.Count.ToString("N0", Display.Culture), Display.Num(Avg(r => r.Moisture), 1), Display.Num(Avg(r => r.Temperature), 1),
-                Display.Num(Avg(r => r.Ph), 1), breaches.ToString(), mine.Count == 0 ? "—" : LongestGap(siteSensors, byDay, to),
-                mine.Count == 0 ? "—" : uptime >= 99.995 ? "100%" : Display.Num(uptime, 1) + "%"));
+            var breaches = allAlerts.Count(a => a.SiteId == site.SiteId && a.AlertType != AlertType.Offline && a.RaisedAt >= fromUtc && a.RaisedAt < toUtc);
+            var gap = PeriodTotals.LongestGap(siteSensors.Select(s => days[s.SensorId]), toUtc < now ? toUtc : now);
+            summary.Add(new SummaryRowDto(site.Name, t.Readings.ToString("N0", Display.Culture), Display.Num(Avg(MeasuredParameter.Moisture), 1),
+                Display.Num(Avg(MeasuredParameter.Temperature), 1), Display.Num(Avg(MeasuredParameter.Ph), 1), breaches.ToString(),
+                t.Readings == 0 ? "—" : GapText(gap), t.Readings == 0 ? "—" : UptimeText(t)));
         }
 
-        var overall = totalReadings == 0 ? 0 : (int)Math.Round(100.0 * totalInRange / totalReadings);
-        inRange.Add(new InRangeDto("All sites", overall, Tone.Off, true));
+        inRange.Add(new InRangeDto("All sites", all.InRangePercent, Tone.Off, true));
         return new Analysis(nutrients, inRange, summary);
-    }
-
-    /// <summary>The longest stretch without a reading from any sensor, counting the silence up to the end of the period.</summary>
-    private static string LongestGap(IEnumerable<Sensor> sensors, Dictionary<string, IReadOnlyList<Reading>> byDay, DateTime to)
-    {
-        var longest = TimeSpan.Zero;
-        foreach (var sensor in sensors)
-        {
-            var times = byDay[sensor.SensorId].Select(r => r.Timestamp).OrderBy(t => t).ToList();
-            if (times.Count == 0) continue;
-            for (var i = 1; i < times.Count; i++) if (times[i] - times[i - 1] > longest) longest = times[i] - times[i - 1];
-            if (to - times[^1] > longest) longest = to - times[^1];
-        }
-        var minutes = (int)Math.Round(longest.TotalMinutes);
-        return minutes >= 60 ? $"{minutes / 60} h {minutes % 60:00} min" : $"{minutes} min";
     }
 }
 
@@ -426,15 +535,14 @@ public sealed class ProfileService : IProfileService
         var provinces = (await _locations.GetAllAsync()).Where(s => u.Role == UserRole.Administrator || u.SiteIds.Contains(s.SiteId)).Select(s => (s.Name, ProvincePalette.For(s.SiteId))).ToList();
         return new ProfileDto(u.Name, Display.Initials(u.Name), u.Email, Display.RoleLabel(u.Role), u.Role == UserRole.Administrator, provinces,
             u.LastActiveAt is null ? "—" : Display.DayLabel(u.LastActiveAt.Value, _clock.UtcNow), Display.LongDateLocal(u.CreatedAt),
-            "Your password is kept by the sign-in service", u.NotifyBreach, u.NotifyOffline, u.NotifyDaily);
+            "Your password is kept by the sign-in service", u.NotifyBreach, u.NotifyOffline);
     }
 
-    public async Task SaveNotificationsAsync(UserContext ctx, bool breach, bool offline, bool daily)
+    public async Task SaveNotificationsAsync(UserContext ctx, bool breach, bool offline)
     {
         var u = await _users.GetAsync(ctx.UserId) ?? throw new NotFoundException("Account not found.");
         u.NotifyBreach = breach;
         u.NotifyOffline = offline;
-        u.NotifyDaily = daily;
         await _users.SaveAsync(u);
     }
 }

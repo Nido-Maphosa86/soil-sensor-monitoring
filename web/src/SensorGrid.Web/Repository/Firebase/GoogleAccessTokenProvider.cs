@@ -1,5 +1,5 @@
 // What this file is for: gets a Google access token for the web server from the service-account key file, and keeps it until 5 minutes before it expires.
-// How it fits in: Repository folder. The Firebase database store, the Firebase sign-in gateway and the Cloud Storage report store all ask it for a token.
+// How it fits in: Repository folder. The Firebase database store and the Firebase sign-in gateway ask it for a token.
 // CONNECT FIREBASE HERE: it only needs SensorGrid:Firebase:ServiceAccountKeyPath. It signs a short-lived JWT (RS256) with the key and exchanges it at
 // oauth2.googleapis.com/token. No NuGet package is needed: only HttpClient and System.Security.Cryptography. The key never leaves the server.
 using System.Security.Cryptography; // RSA signing
@@ -18,9 +18,9 @@ public interface IAccessTokenProvider
 /// <summary>Gets the token from Google using the service-account key file.</summary>
 public sealed class GoogleAccessTokenProvider : IAccessTokenProvider
 {
-    // What the token is allowed to do: Realtime Database, Cloud Storage and the Identity Toolkit admin calls.
+    // What the token is allowed to do: Realtime Database and the Identity Toolkit admin calls.
     private const string Scopes = "https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email " +
-                                  "https://www.googleapis.com/auth/devstorage.read_write https://www.googleapis.com/auth/identitytoolkit";
+                                  "https://www.googleapis.com/auth/identitytoolkit";
 
     private readonly HttpClient _http;
     private readonly FirebaseSettings _settings;

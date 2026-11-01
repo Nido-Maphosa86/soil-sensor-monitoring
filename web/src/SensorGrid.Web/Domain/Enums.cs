@@ -62,9 +62,9 @@ public enum SensorState
 /// <summary>The kinds of report the system can build.</summary>
 public enum ReportKind
 {
-    NutrientSummary, // monthly averages of nitrogen, phosphorus and potassium per province
-    RawReadings,     // every reading of the month (CSV only)
-    BreachLog        // every alert raised in the month
+    MonthlySummary, // per province: the month's figures and one row per day (lowest, average and highest values), plus the alerts
+    RawReadings,    // every reading of up to 7 days (CSV only)
+    BreachLog       // every alert raised in the month
 }
 
 /// <summary>The file formats a report can be downloaded in.</summary>

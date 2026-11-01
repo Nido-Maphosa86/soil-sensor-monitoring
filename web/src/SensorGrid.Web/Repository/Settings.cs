@@ -10,13 +10,10 @@ public sealed class SensorGridSettings
     public FirebaseSettings Firebase { get; set; } = new(); // the connection details (below)
 
     /// <summary>
-    /// When true the web app itself runs the alert evaluator every minute (the fallback for the free Spark plan).
-    /// When false the evaluator is expected to run elsewhere, for example as a scheduled Cloud Function (Blaze plan).
+    /// When true the web app itself checks for new alerts every 10 seconds. This is the only alert checker on the free Spark plan, so it is on
+    /// by default. Turn it off only when the check runs somewhere else (for example a scheduled Cloud Function on the Blaze plan).
     /// </summary>
-    public bool RunAlertEvaluatorInWebApp { get; set; }
-
-    /// <summary>Save report files in Cloud Storage (needs the Blaze plan). False = save them in App_Data/reports on the web server.</summary>
-    public bool UseCloudStorageForReports { get; set; }
+    public bool RunAlertEvaluatorInWebApp { get; set; } = true;
 
     /// <summary>The public address of this web app, for example "https://sensorgrid.example.org". Invitation and reset emails link back to it.</summary>
     public string WebAppUrl { get; set; } = "";
@@ -50,9 +47,6 @@ public sealed class FirebaseSettings
     /// <summary>The Web API key of the project (Project settings, General). Used for sign-in and password emails.</summary>
     public string WebApiKey { get; set; } = "";
 
-    /// <summary>The Cloud Storage bucket for report files, for example "sensorgrid-prod.firebasestorage.app".</summary>
-    public string StorageBucket { get; set; } = "";
-
     /// <summary>Full path to the service-account key (JSON). Keep it OUTSIDE the repository.</summary>
     public string ServiceAccountKeyPath { get; set; } = "";
 
@@ -66,7 +60,7 @@ public sealed class FirebaseSettings
     public string AuthEmulatorHost { get; set; } = "127.0.0.1:9099";
 
     /// <summary>The names of the settings that are still empty or wrong. An empty list means the app can connect.</summary>
-    public IReadOnlyList<string> Missing(bool cloudStorageNeeded)
+    public IReadOnlyList<string> Missing()
     {
         var missing = new List<string>();
 
@@ -79,7 +73,6 @@ public sealed class FirebaseSettings
         Need(ProjectId, nameof(ProjectId));
         Need(DatabaseUrl, nameof(DatabaseUrl));
         Need(WebApiKey, nameof(WebApiKey));
-        if (cloudStorageNeeded) Need(StorageBucket, nameof(StorageBucket)); // only needed when reports go to Cloud Storage
         if (!UseEmulators) // the emulators need no key file
         {
             Need(ServiceAccountKeyPath, nameof(ServiceAccountKeyPath));

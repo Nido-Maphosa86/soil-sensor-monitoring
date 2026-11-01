@@ -194,7 +194,7 @@ tbody tr:last-child td{border-bottom:none}
 .modal .backdrop{position:absolute;inset:0;background:rgba(13,38,32,.55)}
 .modal .box{position:relative;width:min(480px,100%);background:#fff;border-radius:20px;padding:24px;box-shadow:0 20px 40px rgba(13,38,32,.3);max-height:calc(100vh - 32px);overflow:auto}
 .modal .lab{font-size:10px;font-weight:600;letter-spacing:1px;color:var(--tx2);margin-bottom:7px;display:block}
-.modal textarea,.modal select,.modal input[type=text],.modal input[type=password],.modal input[type=email]{width:100%;border:1px solid #DDE5E1;border-radius:11px;padding:11px 14px;font:inherit;font-size:14px;outline:0;background:#fff}
+.modal textarea,.modal select,.modal input[type=text],.modal input[type=password],.modal input[type=email],.modal input[type=date]{width:100%;border:1px solid #DDE5E1;border-radius:11px;padding:11px 14px;font:inherit;font-size:14px;outline:0;background:#fff}
 .modal textarea{height:96px;resize:none}
 .modal input:focus,.modal textarea:focus,.modal select:focus{border:1.5px solid #10795A;box-shadow:0 0 0 3px rgba(16,121,90,.12)}
 .modal .x{width:28px;height:28px;border-radius:9px;display:flex;align-items:center;justify-content:center;color:var(--tx3);cursor:pointer;background:none;border:0}

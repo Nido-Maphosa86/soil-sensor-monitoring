@@ -16,6 +16,7 @@ public static class ServiceLayer
         services.AddSingleton<DataScope>();
         services.AddSingleton<Analytics>();
         services.AddSingleton<SensorLookup>();
+        services.AddSingleton<DailyFigures>();
         services.AddSingleton<SiteMetrics>();
 
         services.AddSingleton<ICsvWriter, CsvWriter>();

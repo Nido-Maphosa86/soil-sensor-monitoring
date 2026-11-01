@@ -37,9 +37,6 @@
     <div class="field@(Err("ModbusSlaveId"))"><label for="ModbusSlaveId">MODBUS SLAVE ID</label>
       <div class="inp"><input id="ModbusSlaveId" name="ModbusSlaveId" type="number" min="1" max="247" value="@f.ModbusSlaveId" required /></div>
       @if (errors.TryGetValue("ModbusSlaveId", out var e4)){<div class="hint">@e4</div>}else{<div class="hint">Must be unique on the RS485 bus at this site</div>}</div>
-    <div class="field@(Err("Firmware"))"><label for="Firmware">FIRMWARE VERSION</label>
-      <div class="inp"><select id="Firmware" name="Firmware">
-        @foreach (var v in SensorService.FirmwareVersions){<option value="@v" selected="@(v == f.Firmware)">@v</option>}</select></div></div>
   </div>
   <div style="height:1px;background:var(--line2);margin-top:26px"></div>
   <div style="margin-top:22px">

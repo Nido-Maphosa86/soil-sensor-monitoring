@@ -28,7 +28,7 @@ public sealed record SiteDetailDto(string SiteId, string Name, string Subtitle, 
     string Updated, IReadOnlyList<SensorRowDto> Sensors, string SensorsCaption);
 
 /// <summary>Maps a sensor to the row shown in the sensor tables.</summary>
-public sealed record SensorRowDto(string SensorId, string Province, string Installed, string LastReading, string Firmware, string StateLabel, Tone Tone)
+public sealed record SensorRowDto(string SensorId, string Province, string Installed, string LastReading, string StateLabel, Tone Tone)
 {
     /// <summary>The live part (last reading, online or offline) comes from the gateway's latest row; a sensor without one has not reported yet.</summary>
     public static SensorRowDto From(Sensor s, string province, SensorStatus? status, DateTime nowUtc)
@@ -36,6 +36,6 @@ public sealed record SensorRowDto(string SensorId, string Province, string Insta
         var state = SensorStateRule.Evaluate(s, status, nowUtc);
         var tone = state == SensorState.Online ? Tone.Ok : Tone.Off;
         return new SensorRowDto(s.SensorId, province, s.InstalledDate.ToString("dd MMM yyyy", Display.Culture), Display.LastReading(status?.LastCommunication, nowUtc),
-            s.Firmware, Display.StateLabel(state), tone);
+            Display.StateLabel(state), tone);
     }
 }

@@ -31,9 +31,9 @@ builder.Services.AddRepositoryLayer(builder.Configuration);
 builder.Services.AddServiceLayer(builder.Configuration);
 
 var settings = builder.Configuration.GetSection("SensorGrid").Get<SensorGridSettings>() ?? new SensorGridSettings();
-var connected = settings.Firebase.Missing(settings.UseCloudStorageForReports).Count == 0;
+var connected = settings.Firebase.Missing().Count == 0;
 
-// The evaluator runs inside the web app only when asked to (the fallback for the free Spark plan) and only once Firebase is connected.
+// The evaluator runs inside the web app (on by default: it is the only alert checker on the free Spark plan), once Firebase is connected.
 if (connected && settings.RunAlertEvaluatorInWebApp)
     builder.Services.AddHostedService<AlertEvaluatorWorker>();
 
@@ -74,7 +74,7 @@ builder.Services.AddAuthorization(options =>
 var app = builder.Build();
 
 if (connected) await app.Services.EnsureFirstAdministratorAsync(); // only does something while the database has no accounts
-else app.Logger.LogWarning("Waiting for the Firebase connection. Missing: {Missing}", string.Join(", ", settings.Firebase.Missing(settings.UseCloudStorageForReports)));
+else app.Logger.LogWarning("Waiting for the Firebase connection. Missing: {Missing}", string.Join(", ", settings.Firebase.Missing()));
 
 if (!app.Environment.IsDevelopment())
 {

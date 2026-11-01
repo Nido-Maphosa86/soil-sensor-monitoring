@@ -16,9 +16,7 @@ RUN dotnet publish src/SensorGrid.Web/SensorGrid.Web.csproj -c Release -o /app -
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app .
-# Report files are saved in App_Data/reports. The app runs as the non-root "app" user, so that user must own the folder.
-USER root
-RUN mkdir -p /app/App_Data/reports && chown -R $APP_UID /app/App_Data
+# the app runs as the non-root "app" user; it writes no files (reports are built when they are downloaded)
 USER $APP_UID
 # the app listens on port 8080 inside the container; the host sends its web traffic there
 ENV ASPNETCORE_HTTP_PORTS=8080

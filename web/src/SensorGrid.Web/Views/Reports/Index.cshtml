@@ -1,4 +1,5 @@
-@* W10 Reports: nutrient chart, share of readings in range, monthly summary, generated reports and the Generate report dialog. *@
+@* W10 Reports: nutrient chart, share of readings in range, monthly summary, generated reports and the Generate report dialog.
+   A report is only a description; Download builds the file from the latest data. *@
 @model ReportsPageDto
 @{
     ViewData["Title"] = "Reports";
@@ -103,13 +104,17 @@
     <div style="display:flex;justify-content:space-between;align-items:center">
       <div style="font-size:16px;font-weight:700">Generate report</div>
       <button type="button" class="x" data-close aria-label="Close"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
-    <div class="cap" style="margin-top:4px">Only data from the provinces you can open is included.</div>
+    <div class="cap" style="margin-top:4px">Only data from the provinces you can open is included. The file is built from the latest data each time you download it.</div>
     <div style="margin-top:20px"><label class="lab" for="kind">REPORT</label>
-      <select id="kind" name="kind"><option value="NutrientSummary">Monthly nutrient summary</option><option value="RawReadings">Raw readings export (CSV only)</option><option value="BreachLog">Threshold breach log</option></select></div>
+      <select id="kind" name="kind"><option value="MonthlySummary">Monthly summary (day by day)</option><option value="BreachLog">Threshold breach log</option><option value="RawReadings">Raw readings, 7 days (CSV only)</option></select></div>
     <div style="margin-top:16px"><label class="lab" for="format">FORMAT</label>
       <select id="format" name="format"><option value="Pdf">PDF</option><option value="Csv">CSV</option></select></div>
-    <div style="margin-top:16px"><label class="lab" for="period">MONTH</label>
+    @* the month is for the summary and the breach log; raw readings take a first day instead (site.js shows the one that fits the chosen report) *@
+    <div style="margin-top:16px" data-show-when="kind!=RawReadings"><label class="lab" for="period">MONTH</label>
       <select id="period" name="period">@foreach (var (v, l) in Model.Periods){<option value="@v" selected="@(v == Model.Period)">@l</option>}</select></div>
+    <div style="margin-top:16px" data-show-when="kind=RawReadings"><label class="lab" for="from">FIRST DAY</label>
+      <input id="from" name="from" type="date" value="@Model.RawFrom.ToString("yyyy-MM-dd")" min="@Model.RawEarliest.ToString("yyyy-MM-dd")" max="@Model.RawLatest.ToString("yyyy-MM-dd")" />
+      <div class="cap" style="margin-top:6px">The export covers 7 days from this day. For other periods use Export CSV on the Readings log.</div></div>
     <hr />
     <div class="foot"><button type="button" class="btn ghost" data-close>Cancel</button><button type="submit" class="btn">Generate</button></div>
   </form>

@@ -97,3 +97,11 @@ public interface IReportRepository
     Task AddAsync(Report report, CancellationToken ct = default);
 }
 
+/// <summary>daily_stats/{sensor_id}/{yyyy-MM-dd}: the saved figures of finished days. Only the web server writes them.</summary>
+public interface IDailyStatsRepository
+{
+    /// <summary>The saved days of one sensor from firstDay to lastDay (both included), oldest first. Days not saved yet are simply missing.</summary>
+    Task<IReadOnlyList<DailyStats>> GetRangeAsync(string sensorId, DateTime firstDay, DateTime lastDay, CancellationToken ct = default);
+    Task SaveAsync(DailyStats stats, CancellationToken ct = default);
+}
+

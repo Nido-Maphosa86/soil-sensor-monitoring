@@ -10,7 +10,6 @@ namespace SensorGrid.Service;
 public sealed class SensorService : ISensorService
 {
     public const int PageSize = 10;
-    public static readonly IReadOnlyList<string> FirmwareVersions = new[] { "v2.4.1", "v2.4.0" };
     public static readonly IReadOnlyList<string> StateFilters = new[] { "All statuses", "Online", "Offline" };
 
     private readonly DataScope _scope;
@@ -72,7 +71,7 @@ public sealed class SensorService : ISensorService
         return new RegisterSensorForm
         {
             SiteId = site.SiteId, SensorId = NextCode(site, sensors), InstalledDate = Display.Local(_clock.UtcNow).Date, DepthCm = 15,
-            ModbusSlaveId = NextSlave(site.SiteId, sensors), Firmware = FirmwareVersions[0], IncludeInAverage = true
+            ModbusSlaveId = NextSlave(site.SiteId, sensors), IncludeInAverage = true
         };
     }
 
@@ -108,15 +107,12 @@ public sealed class SensorService : ISensorService
             }
         }
 
-        var firmware = FirmwareVersions.Contains(form.Firmware ?? "") ? form.Firmware! : "";
-        if (firmware == "") errors["Firmware"] = "Choose a firmware version.";
-
         if (errors.Count > 0) return new RegisterResult(false, errors, conflict);
 
         await _sensors.AddAsync(new Sensor
         {
             SensorId = code, SiteId = site!.SiteId, Name = $"Soil probe {code}", Model = "SG-RS485-7", IsActive = true, IncludeInAverage = form.IncludeInAverage,
-            InstalledDate = form.InstalledDate!.Value.Date, DepthCm = form.DepthCm!.Value, ModbusSlaveId = form.ModbusSlaveId!.Value, Firmware = firmware
+            InstalledDate = form.InstalledDate!.Value.Date, DepthCm = form.DepthCm!.Value, ModbusSlaveId = form.ModbusSlaveId!.Value
         });
         return new RegisterResult(true, errors, null);
     }

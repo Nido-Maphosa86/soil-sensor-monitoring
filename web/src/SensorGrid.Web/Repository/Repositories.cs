@@ -81,7 +81,6 @@ public sealed class UserRepository : IUserRepository
         Put(o, "created_at", u.CreatedAt);
         Put(o, "notify_breach", u.NotifyBreach);
         Put(o, "notify_offline", u.NotifyOffline);
-        Put(o, "notify_daily", u.NotifyDaily);
         if (u.LastActiveAt is { } last) Put(o, "last_active_at", last);
 
         // user_locations and location_users are always written together, in one update.
@@ -114,7 +113,7 @@ public sealed class UserRepository : IUserRepository
         UserId = uid, Name = Str(n, "name"), Email = Str(n, "email"), Role = ParseRole(Str(n, "role")),
         Status = ParseEnum(Str(n, "account_status"), AccountStatus.Deactivated), CreatedAt = Time(n, "created_at") ?? default,
         LastActiveAt = Time(n, "last_active_at"), NotifyBreach = Bool(n, "notify_breach", true), NotifyOffline = Bool(n, "notify_offline", true),
-        NotifyDaily = Bool(n, "notify_daily"), SiteIds = links is null ? new List<string>() : links.Select(kv => kv.Key).ToList()
+        SiteIds = links is null ? new List<string>() : links.Select(kv => kv.Key).ToList()
     };
 }
 
@@ -148,7 +147,6 @@ public sealed class SensorRepository : ISensorRepository
         Put(o, "installation_date", DateText(s.InstalledDate));
         Put(o, "depth_cm", s.DepthCm);
         Put(o, "modbus_slave_id", s.ModbusSlaveId);
-        Put(o, "firmware_version", s.Firmware);
         // The lookup goes in the same update, so the security rules always know the sensor's province.
         return _store.UpdateAsync("", new Dictionary<string, JsonNode?>
         {
@@ -161,7 +159,7 @@ public sealed class SensorRepository : ISensorRepository
     {
         SiteId = loc, SensorId = id, Name = Str(n, "name", id), Model = Str(n, "model"), IsActive = Bool(n, "is_active", true),
         IncludeInAverage = Bool(n, "include_in_average", true), InstalledDate = ParseDate(Str(n, "installation_date")), DepthCm = (int)(Long(n, "depth_cm") ?? 15),
-        ModbusSlaveId = (int)(Long(n, "modbus_slave_id") ?? 0), Firmware = Str(n, "firmware_version", "v2.4.1")
+        ModbusSlaveId = (int)(Long(n, "modbus_slave_id") ?? 0)
     };
 }
 
@@ -394,8 +392,6 @@ public sealed class ReportRepository : IReportRepository
         Put(o, "period_start", DateText(r.PeriodStart));
         Put(o, "period_end", DateText(r.PeriodEnd));
         Put(o, "generated_at", r.GeneratedAt);
-        Put(o, "file_path", r.FilePath);
-        Put(o, "file_size", r.SizeBytes);
         var updates = new Dictionary<string, JsonNode?> { [$"reports/{r.ReportId}"] = o };
         foreach (var loc in r.SiteIds) updates[$"report_locations/{r.ReportId}/{loc}"] = true;
         return _store.UpdateAsync("", updates, ct);
@@ -405,6 +401,52 @@ public sealed class ReportRepository : IReportRepository
     {
         ReportId = id, GeneratedBy = Str(n, "generated_by"), Name = Str(n, "name"), Format = ParseFormat(Str(n, "format")), Kind = ParseKind(Str(n, "report_type")),
         PeriodStart = ParseDate(Str(n, "period_start")), PeriodEnd = ParseDate(Str(n, "period_end")), GeneratedAt = Time(n, "generated_at") ?? default,
-        FilePath = Str(n, "file_path"), SizeBytes = Long(n, "file_size") ?? 0, SiteIds = links is null ? new List<string>() : links.Select(kv => kv.Key).ToList()
+        SiteIds = links is null ? new List<string>() : links.Select(kv => kv.Key).ToList()
     };
+}
+
+public sealed class DailyStatsRepository : IDailyStatsRepository
+{
+    private readonly IRealtimeDatabaseStore _store;
+
+    public DailyStatsRepository(IRealtimeDatabaseStore store) => _store = store;
+
+    public async Task<IReadOnlyList<DailyStats>> GetRangeAsync(string sensorId, DateTime firstDay, DateTime lastDay, CancellationToken ct = default)
+    {
+        // the keys are yyyy-MM-dd, so they sort by date and a period is a key range
+        var rows = await _store.QueryByKeyAsync($"daily_stats/{sensorId}", DateText(firstDay), DateText(lastDay), ct: ct);
+        return rows.Select(r => Map(sensorId, r.Key, r.Value)).ToList();
+    }
+
+    public Task SaveAsync(DailyStats d, CancellationToken ct = default)
+    {
+        var o = new JsonObject();
+        Put(o, "readings", d.Readings); // stored even when 0, so a silent day is not worked out again
+        Put(o, "in_range", d.InRange);
+        foreach (var (p, (min, sum, max)) in d.Values)
+        {
+            Put(o, $"{Key(p)}_min", min);
+            Put(o, $"{Key(p)}_sum", sum);
+            Put(o, $"{Key(p)}_max", max);
+        }
+        if (d.FirstAt is { } first) Put(o, "first_at", first);
+        if (d.LastAt is { } last) Put(o, "last_at", last);
+        Put(o, "longest_gap_ms", (long)d.LongestGap.TotalMilliseconds);
+        Put(o, "offline_ms", (long)d.Offline.TotalMilliseconds);
+        return _store.SetAsync($"daily_stats/{d.SensorId}/{DateText(d.Day)}", o, ct);
+    }
+
+    private static DailyStats Map(string sensorId, string day, JsonNode? n)
+    {
+        var d = new DailyStats
+        {
+            SensorId = sensorId, Day = ParseDate(day), Readings = (int)(Long(n, "readings") ?? 0), InRange = (int)(Long(n, "in_range") ?? 0),
+            FirstAt = Time(n, "first_at"), LastAt = Time(n, "last_at"),
+            LongestGap = TimeSpan.FromMilliseconds(Long(n, "longest_gap_ms") ?? 0), Offline = TimeSpan.FromMilliseconds(Long(n, "offline_ms") ?? 0)
+        };
+        foreach (var p in Enum.GetValues<MeasuredParameter>())
+            if (Num(n, $"{Key(p)}_sum") is { } sum)
+                d.Values[p] = (Num(n, $"{Key(p)}_min") ?? 0, sum, Num(n, $"{Key(p)}_max") ?? 0);
+        return d;
+    }
 }

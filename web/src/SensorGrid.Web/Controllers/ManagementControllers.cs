@@ -99,10 +99,10 @@ public class ReportsController : AppController
     public async Task<IActionResult> Index(string? period) => View(await _reports.GetPageAsync(Me, period));
 
     [HttpPost]
-    public async Task<IActionResult> Generate(ReportKind kind, ReportFormat format, string? period)
+    public async Task<IActionResult> Generate(ReportKind kind, ReportFormat format, string? period, DateTime? from)
     {
-        var result = await _reports.GenerateAsync(Me, kind, format, period);
-        if (result.Success) TempData["Flash"] = "Report generated. You can download it below.";
+        var result = await _reports.GenerateAsync(Me, kind, format, period, from);
+        if (result.Success) TempData["Flash"] = "Report added. Download builds it from the latest data.";
         else TempData["FlashBad"] = result.Error;
         return RedirectToAction(nameof(Index), new { period });
     }
@@ -170,9 +170,9 @@ public class ProfileController : AppController
     public async Task<IActionResult> Index() => View(await _profile.GetAsync(Me));
 
     [HttpPost]
-    public async Task<IActionResult> Notifications(bool breach, bool offline, bool daily)
+    public async Task<IActionResult> Notifications(bool breach, bool offline)
     {
-        await _profile.SaveNotificationsAsync(Me, breach, offline, daily);
+        await _profile.SaveNotificationsAsync(Me, breach, offline);
         TempData["Flash"] = "Notification choices saved.";
         return RedirectToAction(nameof(Index));
     }

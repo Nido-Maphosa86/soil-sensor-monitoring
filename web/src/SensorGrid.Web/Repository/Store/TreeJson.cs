@@ -117,14 +117,14 @@ public static class TreeJson
     // report types as the tree spells them
     public static string KindText(ReportKind k) => k switch
     {
-        ReportKind.NutrientSummary => "Nutrient summary",
+        ReportKind.MonthlySummary => "Monthly summary",
         ReportKind.RawReadings => "Raw readings",
         _ => "Breach log"
     };
 
     public static ReportKind ParseKind(string? s) => s switch
     {
-        "Nutrient summary" => ReportKind.NutrientSummary,
+        "Monthly summary" or "Nutrient summary" => ReportKind.MonthlySummary, // "Nutrient summary" is the older name of the same report
         "Raw readings" => ReportKind.RawReadings,
         _ => ReportKind.BreachLog
     };

@@ -11,8 +11,8 @@ With the web console you can:
 - look at each **site** and its **sensors**, and see which sensors are online or offline;
 - read the **readings log** and download it as a CSV file;
 - set the **thresholds** (the allowed minimum and maximum of each value);
-- get **alerts** when a value goes outside its threshold, or when a sensor stops sending for 2 hours, and acknowledge or resolve them with a note;
-- create **reports** (PDF or CSV);
+- get **alerts** when a value goes outside its threshold, or when a sensor stops sending for 1 minute (checked every 10 seconds), and acknowledge or resolve them with a note;
+- create **reports**: a monthly summary with one row per day (PDF or CSV), a breach log, and raw readings for up to 7 days (CSV);
 - manage **user accounts** (invite people and give them provinces).
 
 There are two kinds of user:
@@ -50,9 +50,6 @@ The app has no sample data. Everything comes from the Firebase project.
    ```
    ```bash
    dotnet user-secrets set "SensorGrid:WebAppUrl" "http://localhost:5300"
-   ```
-   ```bash
-   dotnet user-secrets set "SensorGrid:RunAlertEvaluatorInWebApp" "true"
    ```
    Check them with:
    ```bash

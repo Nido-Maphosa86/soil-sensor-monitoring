@@ -12,7 +12,6 @@ public sealed class RegisterSensorForm
     public DateTime? InstalledDate { get; set; }
     public int? DepthCm { get; set; }
     public int? ModbusSlaveId { get; set; }
-    public string? Firmware { get; set; }
     public bool IncludeInAverage { get; set; } = true;
 }
 

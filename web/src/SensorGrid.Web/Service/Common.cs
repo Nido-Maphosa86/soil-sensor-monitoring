@@ -129,9 +129,6 @@ public static class Display
     /// <summary>A moment shown as a South African date: "3 September 2026".</summary>
     public static string LongDateLocal(DateTime utc) => Local(utc).ToString("d MMMM yyyy", Culture);
 
-    public static string Size(long bytes) =>
-        bytes >= 1024 * 1024 ? $"{bytes / 1024.0 / 1024.0:F1} MB" : $"{Math.Max(1, bytes / 1024)} KB";
-
     /// <summary>First letter of the first and last word: "N.M Maphosa" gives "NM".</summary>
     public static string Initials(string name)
     {

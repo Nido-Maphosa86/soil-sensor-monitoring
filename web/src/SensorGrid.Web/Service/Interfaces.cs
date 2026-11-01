@@ -90,7 +90,7 @@ public interface INotificationService
 public interface IReportService
 {
     Task<ReportsPageDto> GetPageAsync(UserContext ctx, string? period);
-    Task<GenerateReportResult> GenerateAsync(UserContext ctx, ReportKind kind, ReportFormat format, string? period);
+    Task<GenerateReportResult> GenerateAsync(UserContext ctx, ReportKind kind, ReportFormat format, string? period, DateTime? from);
     Task<ReportFile> DownloadAsync(UserContext ctx, string reportId);
 }
 
@@ -108,7 +108,7 @@ public interface IUserService
 public interface IProfileService
 {
     Task<ProfileDto> GetAsync(UserContext ctx);
-    Task SaveNotificationsAsync(UserContext ctx, bool breach, bool offline, bool daily);
+    Task SaveNotificationsAsync(UserContext ctx, bool breach, bool offline);
 }
 
 /// <summary>Looks at the newest data of every sensor and raises alerts (the same rules as the Cloud Function). Never duplicates an open alert.</summary>
@@ -125,5 +125,5 @@ public interface ICsvWriter
 
 public interface IPdfWriter
 {
-    byte[] Write(string title, IEnumerable<string> lines);
+    byte[] Write(string title, IEnumerable<PdfBlock> blocks);
 }

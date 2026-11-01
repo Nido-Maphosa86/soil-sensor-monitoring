@@ -201,6 +201,20 @@
     });
   }
 
+  /* ---------- Parts of a form shown only for one choice: data-show-when="kind=RawReadings" (or kind!=RawReadings) ---------- */
+  $all('[data-show-when]').forEach(function (part) {
+    var rule = part.getAttribute('data-show-when'), not = rule.indexOf('!=') > 0;
+    var bits = rule.split(not ? '!=' : '='), form = part.closest('form'), ctl = form && form.elements[bits[0]];
+    if (!ctl) return;
+    function apply() {
+      var show = (ctl.value === bits[1]) !== not;
+      part.style.display = show ? '' : 'none';
+      $all('input,select', part).forEach(function (i) { i.disabled = !show; }); // a hidden part is not sent
+    }
+    ctl.addEventListener('change', apply);
+    apply();
+  });
+
   /* ---------- Profile: notification toggles save straight away ---------- */
   $all('[data-toggle]').forEach(function (t) {
     t.addEventListener('click', function () {

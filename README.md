@@ -12,7 +12,7 @@ and analysis.
 ## Technologies
 - Mobile: Flutter (Android)
 - Web: ASP.NET MVC
-- Backend: Firebase (Authentication, Realtime Database, Cloud Storage, Cloud Functions)
+- Backend: Firebase (Authentication, Realtime Database)
 - Data source: third-party sensor gateway (ESP32 with 15 RS485 soil sensors) writing to Firebase
 
 ## Group Members
