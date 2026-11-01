@@ -52,7 +52,7 @@ A person who stays signed in is let straight in the next time the app opens, aft
 |---|---|---|
 | `lib/models` | Model | Entities, enums, the four rules and the ready-to-show screen models. No Flutter, no Firebase |
 | `lib/repositories` | Repository | The repository interfaces, `RepositorySet`, and the Firebase versions in `firebase/` |
-| `lib/viewmodels` | ViewModel | One `ChangeNotifier` per screen, plus `SessionViewModel` (who is signed in) and `ViewModelFactory` |
+| `lib/viewmodels` | ViewModel | One `ChangeNotifier` per screen, plus `SessionViewModel` (who is signed in), `LiveSignals` (changes arriving from Firebase) and `ViewModelFactory` |
 | `lib/views` | View | The screens M1 to M9, the waiting screen, the shared widgets, the charts and the named routes |
 | `lib/core` | Shared | Theme colours, text formatting, the Firebase settings |
 | `lib/main.dart` | Wiring | Starts Firebase, `MultiProvider`, `onGenerateRoute` |
@@ -64,6 +64,15 @@ The MVVM rules this code keeps:
 - A Model has no Flutter imports at all.
 - Every rule is checked in the ViewModel before a write (for example the note in `AlertDetailViewModel.act`).
 - After Acknowledge or Resolve, `SessionViewModel.dataChanged()` makes Home, Sites, Alerts, Reports and the tab badge reload.
+
+## Live updates
+
+The screens update by themselves; pulling a screen down also loads it again.
+
+- `LiveSignals` listens to `alerts/{loc}` of the person's provinces and to `readings/{sensor_id}/latest` of their sensors.
+- A new or changed alert reaches the badge, the Alerts list and an open alert at once (the alerts are created by the web server's alert checker, every 10 seconds).
+- Readings refresh the province screen at most every 10 seconds, Home and Sites every 30 seconds, and the 15-minute trend every 10 seconds.
+- A 20-second heartbeat also refreshes them, so a silent sensor turns **Offline** after 1 minute. When every sensor is offline, the province screen shows the last values received, in grey, with an Offline banner.
 
 Pages on top of the tabs are named routes in `lib/views/routes.dart`: `/profile`, `/location`, `/trend`, `/alert`.
 
@@ -79,11 +88,12 @@ Pages on top of the tabs are named routes in `lib/views/routes.dart`: `/profile`
 | Action | Database |
 |---|---|
 | Sign in | Firebase Authentication, then `users/{uid}` and `user_locations/{uid}`; Invited becomes Active; `last_active_at` |
-| Home, Sites, Province detail | `locations`, `sensors`, `readings/{sensor_id}/latest`, `thresholds` |
-| Trends | `readings/{sensor_id}/history` as a key range (the keys are push IDs, which start with their time). A new row about every 6 seconds |
+| Home, Sites, Province detail | `locations`, `sensors`, `readings/{sensor_id}/latest`, `thresholds`, and the last hour of `readings/{sensor_id}/history` (readings and share in range) |
+| Trends | `readings/{sensor_id}/history` as a key range (the keys are push IDs, which start with their time). 15 minutes reads every row (about 150) and averages each 10 seconds; 24 hours, 7 days and 30 days read ONE row per 5 minutes, hour and 6 hours |
+| Reports | One row per hour per sensor over the last 24 hours (N, P, K and share in range). Report files are on the web console |
 | Alerts | `alerts/{loc}` and `alert_actions/{loc}`. Acknowledge and Resolve write the action and the new state in ONE update |
 | Notifications | `notifications/{uid}`, marking `is_read` and `read_at` |
-| Profile | `users/{uid}/notify_breach`, `notify_offline`, `notify_daily` |
+| Profile | `users/{uid}/notify_breach`, `notify_offline` |
 
 The readings come from the third-party sensor gateway, which writes its own field names. The app maps them like this
 (the web console does the same):
@@ -99,6 +109,7 @@ The readings come from the third-party sensor gateway, which writes its own fiel
 The gateway sends no battery or signal, so the app shows neither. A field officer can read a sensor's readings only when the
 web console has registered the sensor (it writes `sensor_locations/{sensor_id}`, which the Security Rules check).
 
-The app never writes readings, alerts or accounts. Report files are generated and downloaded on the web console.
+The app never writes readings, alerts or accounts. Report files (monthly summary, breach log, raw readings) are made and downloaded on the web console.
+Rows of zeros (the probe not in the soil) are left out of every figure and chart, the same rule as the web console.
 
 Packages are free ones from pub.dev only: `provider`, `intl`, `google_fonts`, `firebase_core`, `firebase_auth`, `firebase_database`.

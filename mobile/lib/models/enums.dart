@@ -57,16 +57,6 @@ enum AlertState {
   static AlertState fromStored(String s) => values.firstWhere((r) => r.stored == s, orElse: () => open);
 }
 
-// The file type of a report made on the web console.
-enum ReportFormat {
-  pdf('PDF'),
-  csv('CSV');
-
-  const ReportFormat(this.stored);
-  final String stored;
-  static ReportFormat fromStored(String s) => values.firstWhere((r) => r.stored == s, orElse: () => pdf);
-}
-
 /// The seven values of a reading that the app uses. `key` is the name used for thresholds; the gateway's own field
 /// names are mapped in the reading repository. Humidity is in the gateway's rows but not used.
 enum Parameter {
@@ -105,13 +95,20 @@ enum Parameter {
 /// The traffic light shown for a value against its band.
 enum BandStatus { inRange, nearLimit, outOfRange }
 
-/// How far back a trend chart looks.
+/// How far back a trend chart looks, and how far apart its points are. The gateway sends a reading about every 6 seconds, so
+/// 15 minutes averages every reading in each 10 seconds, while the longer ranges take ONE reading per step (a week of every
+/// reading would be about 100,000 rows to download).
 enum TrendRange {
-  hours24('24 hours', Duration(hours: 24)),
-  days7('7 days', Duration(days: 7)),
-  days30('30 days', Duration(days: 30));
+  minutes15('15 min', Duration(minutes: 15), Duration(seconds: 10)),
+  hours24('24 h', Duration(hours: 24), Duration(minutes: 5)),
+  days7('7 days', Duration(days: 7), Duration(hours: 1)),
+  days30('30 days', Duration(days: 30), Duration(hours: 6));
 
-  const TrendRange(this.label, this.span);
+  const TrendRange(this.label, this.span, this.step);
   final String label; // the text on the chart's range buttons
   final Duration span; // how much time the chart covers
+  final Duration step; // the time between two points
+
+  /// True when every reading of the period is read (only 15 minutes); the others read one reading per step.
+  bool get usesEveryReading => this == minutes15;
 }

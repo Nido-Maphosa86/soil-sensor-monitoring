@@ -1,38 +1,22 @@
-// SUMMARY: The ViewModel of M8 Reports: the nutrient levels of the person's provinces (last 30 days), the share of readings
-// in range, and the generated reports that can be downloaded.
-// MVVM: ViewModel. A report is only downloaded when ALL its provinces are assigned to the person (rule 4).
-import '../core/format.dart';
-import '../models/entities.dart';
+// SUMMARY: The ViewModel of M8 Reports: the average nitrogen, phosphorus and potassium of each of the person's provinces, and the share
+// of readings in range, over the last 24 hours. Report FILES are made and downloaded on the web console, not on the phone.
+// The gateway sends a reading about every 6 seconds, so the 24 hours are read as ONE reading per hour per sensor (24 small reads)
+// instead of about 14,400 rows. Rows of zeros (the probe not in the soil) are left out.
+// MVVM: ViewModel. Only the person's assigned provinces are read (rule 4).
 import '../models/enums.dart';
-import '../models/rules.dart';
 import '../models/screen_models.dart';
 import '../repositories/repository_set.dart';
 import 'base_view_model.dart';
 import 'location_insights.dart';
 
-/// The answer to a download, for the message at the bottom of the screen.
-class DownloadResult {
-  const DownloadResult({required this.ok, required this.title, required this.detail});
-  final bool ok;
-  final String title;
-  final String detail;
-}
-
 class ReportsViewModel extends LoadingViewModel<ReportsData> {
-  ReportsViewModel(this._repositories, super.session) : _insights = LocationInsights(_repositories.locations, _repositories.readings, _repositories.clock);
+  ReportsViewModel(this._repositories, super.session);
+
+  /// The period the tab covers, and how far apart the readings it uses are.
+  static const period = Duration(hours: 24);
+  static const step = Duration(hours: 1);
 
   final RepositorySet _repositories;
-  final LocationInsights _insights;
-
-  String? _downloadingId;
-
-  /// The id of the report being downloaded right now (null when none).
-  String? get downloadingId => _downloadingId;
-
-  DateTime get nowUtc => _repositories.clock.nowUtc();
-
-  /// The newest generated report (for the big download button), or null when there is none.
-  Report? get latest => data.reports.isEmpty ? null : (List<Report>.of(data.reports)..sort((a, b) => b.generatedAt.compareTo(a.generatedAt))).first;
 
   @override
   Future<ReportsData> fetch() async {
@@ -40,59 +24,31 @@ class ReportsViewModel extends LoadingViewModel<ReportsData> {
     final locations = await _repositories.locations.locations(user.locationIds);
     final nutrients = <NutrientGroup>[];
     final inRange = <InRangeRow>[];
-    var sum = 0, count = 0;
+    var total = 0, good = 0;
 
-    // The average of nitrogen, phosphorus and potassium over the last 30 days, per province.
     for (final loc in locations) {
       final sensors = (await _repositories.locations.sensors(loc.id)).where((s) => s.isActive).toList();
-      final sums = {Parameter.nitrogen: 0.0, Parameter.phosphorus: 0.0, Parameter.potassium: 0.0};
-      var n = 0;
-      for (final s in sensors) {
-        for (final r in await _repositories.readings.readings(loc.id, s.id, now.subtract(const Duration(days: 30)), now)) {
-          for (final p in sums.keys) {
-            sums[p] = sums[p]! + (r.values[p] ?? 0);
-          }
-          n++;
-        }
+      final bands = {for (final t in await _repositories.locations.thresholds(loc.id)) t.parameter: t};
+      final sampled = await Future.wait(sensors.map((s) => _repositories.readings.sample(loc.id, s.id, now.subtract(period), now, step)));
+      final rows = sampled.expand((x) => x).where((r) => !LocationInsights.isEmpty(r)).toList();
+
+      double avg(Parameter p) {
+        final v = [for (final r in rows) if (r.values[p] != null) r.values[p]!];
+        return v.isEmpty ? 0 : v.reduce((a, b) => a + b) / v.length;
       }
-      nutrients.add(NutrientGroup(
-        loc.id,
-        loc.name,
-        n == 0 ? 0 : sums[Parameter.nitrogen]! / n,
-        n == 0 ? 0 : sums[Parameter.phosphorus]! / n,
-        n == 0 ? 0 : sums[Parameter.potassium]! / n,
-      ));
-      final card = await _insights.card(loc);
-      inRange.add(InRangeRow(loc.name, card.inRangePercent));
-      sum += card.inRangePercent;
-      count++;
+
+      nutrients.add(NutrientGroup(loc.id, loc.name, avg(Parameter.nitrogen), avg(Parameter.phosphorus), avg(Parameter.potassium)));
+      final ok = rows.where((r) => LocationInsights.allInRange(r, bands)).length;
+      inRange.add(InRangeRow(loc.name, rows.isEmpty ? null : (100 * ok / rows.length).round()));
+      total += rows.length;
+      good += ok;
     }
 
     return ReportsData(
-      periodLabel: monthYear(now),
+      periodLabel: 'Last 24 hours',
       nutrients: nutrients,
       inRange: inRange,
-      allSites: count == 0 ? 0 : (sum / count).round(),
-      reports: await _repositories.reports.reports(user.locationIds),
+      allSites: total == 0 ? null : (100 * good / total).round(),
     );
-  }
-
-  /// Downloads a report file and says how it went.
-  Future<DownloadResult> download(Report report) async {
-    _downloadingId = report.id;
-    refresh();
-    try {
-      if (!report.locationIds.every((l) => AccessRules.canSee(user, l))) {
-        throw const RuleViolation('This report includes locations that are not assigned to you.');
-      }
-      final file = await _repositories.reports.download(report);
-      // CONNECT FIREBASE HERE (later): save `file.bytes` to the phone (for example with path_provider) and offer to open it.
-      return DownloadResult(ok: true, title: 'Report saved', detail: file.name);
-    } catch (e) {
-      return DownloadResult(ok: false, title: 'Could not download the report', detail: e.toString());
-    } finally {
-      _downloadingId = null;
-      refresh();
-    }
   }
 }

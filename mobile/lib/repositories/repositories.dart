@@ -1,4 +1,4 @@
-// SUMMARY: The "plugs" the app needs from the outside world: sign in, locations, readings, alerts, reports, the clock.
+// SUMMARY: The "plugs" the app needs from the outside world: sign in, locations, readings, alerts, the clock.
 // MVVM: Repository. These are only interfaces. The Firebase implementations are in lib/repositories/firebase.
 import '../models/entities.dart';
 
@@ -51,8 +51,15 @@ abstract class ReadingRepository {
   /// The newest reading of each sensor in a location, by sensor id.
   Future<Map<String, Reading>> latestPerSensor(String locationId);
 
-  /// All readings of one sensor between two UTC times, oldest first.
+  /// All readings of one sensor between two UTC times, oldest first. Keep the period short: there is a reading about every 6 seconds.
   Future<List<Reading>> readings(String locationId, String sensorId, DateTime fromUtc, DateTime toUtc);
+
+  /// ONE reading per step between two UTC times (the first of each step), oldest first. Used for long periods, so a week is
+  /// about 170 small reads instead of 100,000 rows. A step without a reading is left out.
+  Future<List<Reading>> sample(String locationId, String sensorId, DateTime fromUtc, DateTime toUtc, Duration step);
+
+  /// Fires every time the gateway writes a new reading for the sensor (its "latest" changes). Listening keeps a live connection open.
+  Stream<void> watchLatest(String sensorId);
 }
 
 /// What a person wants to do to an alert.
@@ -75,22 +82,11 @@ abstract class AlertRepository {
 
   Future<List<AppNotification>> notifications(String uid);
   Future<void> markRead(String uid, String alertId, DateTime readAt);
+
+  /// Fires as soon as anything changes in a province's alerts (a new alert, or one acknowledged or resolved by anyone).
+  Stream<void> watchAlerts(String locationId);
 }
 
 abstract class ProfileRepository {
-  Future<AppUser> saveNotificationSettings(AppUser user, {required bool breach, required bool offline, required bool daily});
-}
-
-/// A downloaded report file.
-class ReportFile {
-  const ReportFile({required this.name, required this.bytes});
-  final String name;
-  final List<int> bytes;
-}
-
-abstract class ReportRepository {
-  Future<List<Report>> reports(List<String> locationIds);
-
-  /// Downloads the file of a report (from Cloud Storage when Firebase is connected).
-  Future<ReportFile> download(Report report);
+  Future<AppUser> saveNotificationSettings(AppUser user, {required bool breach, required bool offline});
 }

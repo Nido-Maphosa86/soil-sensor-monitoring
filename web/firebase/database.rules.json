@@ -19,10 +19,6 @@
         "notify_offline": {
           ".write": "auth != null && auth.uid === $uid && auth != null && root.child('users').child(auth.uid).child('role').val() === 'Standard User' && root.child('users').child(auth.uid).child('account_status').val() === 'Active'",
           ".validate": "newData.isBoolean()"
-        },
-        "notify_daily": {
-          ".write": "auth != null && auth.uid === $uid && auth != null && root.child('users').child(auth.uid).child('role').val() === 'Standard User' && root.child('users').child(auth.uid).child('account_status').val() === 'Active'",
-          ".validate": "newData.isBoolean()"
         }
       }
     },

@@ -1,6 +1,8 @@
 // SUMMARY: Screens M4 and M4b, Province detail. A dark header with the headline soil moisture, then three tabs:
 // Readings (the other parameters against their bands as a traffic light: in range, near limit, out of range),
 // Trends (open a trend for any parameter) and Sensors (state and last communication of each sensor).
+// The values refresh by themselves while a sensor reports. When every sensor is offline, the last values received are shown in grey
+// with an "Offline" banner, so the screen is never blank. Pulling the page down loads it again.
 // MVVM: View. LocationDetailViewModel loads the province and remembers the open tab; this file only draws.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -25,17 +27,22 @@ class LocationDetailScreen extends StatelessWidget {
           builder: (context, vm, _) => Scaffold(
             body: ViewModelBody<LocationDetail>(
               viewModel: vm,
-              builder: (context, d) => ListView(padding: EdgeInsets.zero, children: [
-                _Header(detail: d, tab: vm.tab, onTab: vm.selectTab, now: vm.nowUtc),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
-                  child: switch (vm.tab) {
-                    0 => _readings(context, d),
-                    1 => _trends(context, d),
-                    _ => _sensors(d, vm.nowUtc),
-                  },
-                ),
-              ]),
+              builder: (context, d) => RefreshIndicator(
+                color: Sg.brand,
+                onRefresh: vm.reload,
+                child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: EdgeInsets.zero, children: [
+                  _Header(detail: d, tab: vm.tab, onTab: vm.selectTab, now: vm.nowUtc),
+                  if (!d.live && vm.tab != 2) _OfflineBanner(detail: d, now: vm.nowUtc),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
+                    child: switch (vm.tab) {
+                      0 => _readings(context, d),
+                      1 => _trends(context, d),
+                      _ => _sensors(d, vm.nowUtc),
+                    },
+                  ),
+                ]),
+              ),
             ),
           ),
         ),
@@ -76,7 +83,8 @@ class LocationDetailScreen extends StatelessWidget {
                   Text('Target ${_num(t.min, t.parameter)} to ${_num(t.max, t.parameter)} ${t.parameter.unit}', style: sgText(12, color: Sg.tx3)),
                 ]),
               ),
-              Text('${_num(t.value, t.parameter)} ${t.parameter.unit}', style: sgText(14, weight: FontWeight.w600, color: Tone.forBand(t.status).fg)),
+              Text('${_num(t.value, t.parameter)} ${t.parameter.unit}',
+                  style: sgText(14, weight: FontWeight.w600, color: t.lastKnown ? Sg.offline : Tone.forBand(t.status).fg)),
               const SizedBox(width: 4),
               const Icon(Icons.chevron_right_rounded, size: 18, color: Sg.tx4),
             ]),
@@ -90,6 +98,32 @@ class LocationDetailScreen extends StatelessWidget {
 
 String _num(double v, Parameter p) => v.toStringAsFixed(p.decimals);
 
+/// Shown under the header when every sensor is offline: the values below are the last ones received.
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner({required this.detail, required this.now});
+  final LocationDetail detail;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        margin: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: Sg.tOff, borderRadius: BorderRadius.circular(16)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          const Icon(Icons.wifi_off_rounded, size: 18, color: Sg.tx2),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              detail.lastUpdated == null
+                  ? 'No sensor in this province has reported yet.'
+                  : 'No sensor has reported for 1 minute or more (last reading ${ago(detail.lastUpdated!, now)}). These are the last values received.',
+              style: sgText(13, color: Sg.tx2, height: 1.45),
+            ),
+          ),
+        ]),
+      );
+}
+
 class _Header extends StatelessWidget {
   const _Header({required this.detail, required this.tab, required this.onTab, required this.now});
 
@@ -102,7 +136,9 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final moisture = detail.tiles.where((t) => t.parameter == Parameter.soilMoisture).cast<ParameterTile?>().firstWhere((_) => true, orElse: () => null);
     final loc = detail.location;
-    final tone = moisture == null ? Tone.off : Tone.forBand(moisture.status);
+    final tone = moisture == null || moisture.lastKnown ? Tone.off : Tone.forBand(moisture.status);
+    const muted = Color(0xFF9FB5AC);
+    final last = detail.lastUpdated;
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
       child: Container(
@@ -120,14 +156,22 @@ class _Header extends StatelessWidget {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   RoundIconButton(Icons.chevron_left_rounded, dark: true, onTap: () => Navigator.of(context).pop()),
+                  // Live while a sensor reports; grey "Offline" with the time of the last reading when none does
                   Container(
                     height: 28,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(color: const Color(0x2961C9A0), borderRadius: BorderRadius.circular(14)),
+                    decoration: BoxDecoration(color: detail.live ? const Color(0x2961C9A0) : const Color(0x1AFFFFFF), borderRadius: BorderRadius.circular(14)),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(width: 6, height: 6, decoration: const BoxDecoration(color: Sg.mint, shape: BoxShape.circle)),
+                      Container(width: 6, height: 6, decoration: BoxDecoration(color: detail.live ? Sg.mint : Sg.offline, shape: BoxShape.circle)),
                       const SizedBox(width: 6),
-                      Text('Live · updated ${ago(detail.lastUpdated, now)}', style: sgText(12, weight: FontWeight.w600, color: Sg.mint)),
+                      Text(
+                        detail.live
+                            ? 'Live · updated ${ago(last!, now)}'
+                            : last == null
+                                ? 'Offline · no readings yet'
+                                : 'Offline · last reading ${ago(last, now)}',
+                        style: sgText(12, weight: FontWeight.w600, color: detail.live ? Sg.mint : const Color(0xFFC9D3CF)),
+                      ),
                     ]),
                   ),
                   const SizedBox(width: 44),
@@ -146,20 +190,24 @@ class _Header extends StatelessWidget {
                           Row(children: [
                             const Icon(Icons.water_drop_outlined, size: 15, color: Color(0xFF9FB5AC)),
                             const SizedBox(width: 6),
-                            Text('Soil moisture', style: sgText(13, color: const Color(0xFF9FB5AC))),
+                            Text(moisture.lastKnown ? 'Soil moisture · last known' : 'Soil moisture', style: sgText(13, color: muted)),
                           ]),
                           const SizedBox(height: 4),
                           Text.rich(TextSpan(children: [
-                            TextSpan(text: moisture.value.toStringAsFixed(1), style: sgText(44, weight: FontWeight.w700, color: Colors.white, spacing: -1.5, height: 1.05)),
-                            TextSpan(text: ' %', style: sgText(20, weight: FontWeight.w700, color: const Color(0xFF9FB5AC))),
+                            TextSpan(
+                                text: moisture.value.toStringAsFixed(1),
+                                style: sgText(44, weight: FontWeight.w700, color: moisture.lastKnown ? muted : Colors.white, spacing: -1.5, height: 1.05)),
+                            TextSpan(text: ' %', style: sgText(20, weight: FontWeight.w700, color: muted)),
                           ])),
                         ]),
                       ),
-                      StatusPill(_label(moisture.status), tone, dark: moisture.status == BandStatus.inRange),
+                      moisture.lastKnown && last != null
+                          ? StatusPill('At ${hhmm(last)}', Tone.off)
+                          : StatusPill(_label(moisture.status), tone, dark: moisture.status == BandStatus.inRange),
                     ]),
                   ),
                   const SizedBox(height: 14),
-                  RangeBar(value: moisture.value, min: moisture.min, max: moisture.max, colour: Sg.mint, dark: true),
+                  RangeBar(value: moisture.value, min: moisture.min, max: moisture.max, colour: moisture.lastKnown ? Sg.offline : Sg.mint, dark: true),
                   const SizedBox(height: 8),
                   Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                     Text('${(moisture.min - (moisture.max - moisture.min)).round()}%', style: sgText(11, weight: FontWeight.w500, color: const Color(0xFF9FB5AC))),
@@ -192,28 +240,32 @@ class _ParameterTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = parameterStyle(tile.parameter);
-    final tone = Tone.forBand(tile.status);
-    return SgCard(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
-      onTap: onTap,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          IconTile(s.icon, fg: s.colour, bg: s.soft, size: 36, iconSize: 17, radius: 11),
-          const Spacer(),
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: tone.fg, shape: BoxShape.circle)),
-          const SizedBox(width: 5),
-          Text(_label(tile.status), style: sgText(11, weight: FontWeight.w600, color: tone.fg)),
+    final tone = tile.lastKnown ? Tone.off : Tone.forBand(tile.status);
+    // a last-known value is shown faded, with "Last known" instead of its traffic light
+    return Opacity(
+      opacity: tile.lastKnown ? 0.6 : 1,
+      child: SgCard(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
+        onTap: onTap,
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            IconTile(s.icon, fg: s.colour, bg: s.soft, size: 36, iconSize: 17, radius: 11),
+            const Spacer(),
+            Container(width: 6, height: 6, decoration: BoxDecoration(color: tone.fg, shape: BoxShape.circle)),
+            const SizedBox(width: 5),
+            Text(tile.lastKnown ? 'Last known' : _label(tile.status), style: sgText(11, weight: FontWeight.w600, color: tone.fg)),
+          ]),
+          const SizedBox(height: 12),
+          Text(tile.parameter.label, style: sgText(13, color: Sg.tx2)),
+          const SizedBox(height: 2),
+          Text.rich(TextSpan(children: [
+            TextSpan(text: _num(tile.value, tile.parameter), style: sgText(24, weight: FontWeight.w700, spacing: -0.5)),
+            TextSpan(text: ' ${tile.parameter.unit}', style: sgText(12, color: Sg.tx3)),
+          ])),
+          const SizedBox(height: 12),
+          RangeBar(value: tile.value, min: tile.min, max: tile.max, colour: tile.lastKnown ? Sg.offline : s.colour),
         ]),
-        const SizedBox(height: 12),
-        Text(tile.parameter.label, style: sgText(13, color: Sg.tx2)),
-        const SizedBox(height: 2),
-        Text.rich(TextSpan(children: [
-          TextSpan(text: _num(tile.value, tile.parameter), style: sgText(24, weight: FontWeight.w700, spacing: -0.5)),
-          TextSpan(text: ' ${tile.parameter.unit}', style: sgText(12, color: Sg.tx3)),
-        ])),
-        const SizedBox(height: 12),
-        RangeBar(value: tile.value, min: tile.min, max: tile.max, colour: s.colour),
-      ]),
+      ),
     );
   }
 }

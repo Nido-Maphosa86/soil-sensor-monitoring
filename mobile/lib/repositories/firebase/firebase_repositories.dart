@@ -26,11 +26,12 @@ class FirebaseBackend {
   /// Reads one path. A refusal by the Security Rules or a network failure becomes a [BackendUnavailable] with a plain message.
   Future<Object?> read(String path) => _guard(() async => (await db.ref(path).get()).value);
 
-  /// Reads the children of a path ordered by key, optionally a key range and only the last few (like the web console's key queries).
-  Future<List<(String, Object?)>> readByKey(String path, {String? startAt, String? endAt, int? limitToLast}) => _guard(() async {
+  /// Reads the children of a path ordered by key, optionally a key range and only the first or last few (like the web console's key queries).
+  Future<List<(String, Object?)>> readByKey(String path, {String? startAt, String? endAt, int? limitToFirst, int? limitToLast}) => _guard(() async {
         Query q = db.ref(path).orderByKey();
         if (startAt != null) q = q.startAt(startAt);
         if (endAt != null) q = q.endAt(endAt);
+        if (limitToFirst != null) q = q.limitToFirst(limitToFirst);
         if (limitToLast != null) q = q.limitToLast(limitToLast);
         final snap = await q.get();
         return [for (final c in snap.children) (c.key!, c.value)];
@@ -38,6 +39,10 @@ class FirebaseBackend {
 
   /// Writes several paths in ONE update: either all of them are saved or none.
   Future<void> update(Map<String, Object?> values) => _guard(() => db.ref().update(values));
+
+  /// Fires every time the data at a path changes (Firebase sends the change to the phone; nothing is asked for again).
+  /// A refusal by the Security Rules simply ends the stream.
+  Stream<void> watch(String path) => db.ref(path).onValue.map((_) {}).handleError((Object _) {});
 
   static Future<T> _guard<T>(Future<T> Function() action) async {
     try {
@@ -154,7 +159,6 @@ class FirebaseAuthRepository implements AuthRepository {
       locationIds: [for (final e in assigned.entries) if (e.value == true) e.key]..sort(),
       notifyBreach: _bool(u, 'notify_breach', true),
       notifyOffline: _bool(u, 'notify_offline', true),
-      notifyDaily: _bool(u, 'notify_daily'),
     );
   }
 
@@ -211,7 +215,6 @@ class FirebaseLocationRepository implements LocationRepository {
           installationDate: _str(_map(e.value), 'installation_date'),
           depthCm: _int(_map(e.value), 'depth_cm'),
           modbusSlaveId: _int(_map(e.value), 'modbus_slave_id'),
-          firmwareVersion: _str(_map(e.value), 'firmware_version'),
         ),
     ]..sort((a, b) => a.id.compareTo(b.id));
   }
@@ -268,6 +271,20 @@ class FirebaseReadingRepository implements ReadingRepository {
     final rows = await _b.readByKey('readings/$sensorId/history', startAt: pushIdPrefix(fromUtc), endAt: lastPushIdAt(toUtc));
     return [for (final r in rows) _reading(locationId, sensorId, r.$2)];
   }
+
+  @override
+  Future<List<Reading>> sample(String locationId, String sensorId, DateTime fromUtc, DateTime toUtc, Duration step) async {
+    // one small read per step ("the first reading from this time on, up to the next step"), all sent together
+    final starts = <DateTime>[for (var t = fromUtc; t.isBefore(toUtc); t = t.add(step)) t];
+    final firsts = await Future.wait(starts.map((t) {
+      final end = t.add(step).isBefore(toUtc) ? t.add(step) : toUtc;
+      return _b.readByKey('readings/$sensorId/history', startAt: pushIdPrefix(t), endAt: lastPushIdAt(end.subtract(const Duration(milliseconds: 1))), limitToFirst: 1);
+    }));
+    return [for (final rows in firsts) for (final r in rows) _reading(locationId, sensorId, r.$2)];
+  }
+
+  @override
+  Stream<void> watchLatest(String sensorId) => _b.watch('readings/$sensorId/latest');
 
   /// The gateway's own field names for each value ("device_id" and "humidity" are in the row too but not used).
   static const _gatewayField = {
@@ -356,6 +373,9 @@ class FirebaseAlertRepository implements AlertRepository {
   Future<void> markRead(String uid, String alertId, DateTime readAt) =>
       _b.update({'notifications/$uid/$alertId/is_read': true, 'notifications/$uid/$alertId/read_at': _ms(readAt)});
 
+  @override
+  Stream<void> watchAlerts(String locationId) => _b.watch('alerts/$locationId');
+
   AlertItem _alert(String loc, String id, Map<String, Object?> m, Map<String, Object?> actions) => AlertItem(
         locationId: loc,
         id: id,
@@ -384,29 +404,18 @@ class FirebaseAlertRepository implements AlertRepository {
   }
 }
 
-// ------------------------------------------------------------------ profile and reports
+// ------------------------------------------------------------------ profile
 
 class FirebaseProfileRepository implements ProfileRepository {
   FirebaseProfileRepository(this._b);
   final FirebaseBackend _b;
 
   @override
-  Future<AppUser> saveNotificationSettings(AppUser user, {required bool breach, required bool offline, required bool daily}) async {
+  Future<AppUser> saveNotificationSettings(AppUser user, {required bool breach, required bool offline}) async {
     await _b.update({
       'users/${user.uid}/notify_breach': breach,
       'users/${user.uid}/notify_offline': offline,
-      'users/${user.uid}/notify_daily': daily,
     });
-    return user.copyWith(notifyBreach: breach, notifyOffline: offline, notifyDaily: daily);
+    return user.copyWith(notifyBreach: breach, notifyOffline: offline);
   }
-}
-
-/// Report FILES are generated and downloaded on the web console. The database rules cannot check that every province of a report
-/// is assigned to the person, so the phone never reads the reports list; the Reports tab shows summaries worked out from readings.
-class FirebaseReportRepository implements ReportRepository {
-  @override
-  Future<List<Report>> reports(List<String> locationIds) async => const [];
-
-  @override
-  Future<ReportFile> download(Report report) => throw const BackendUnavailable('Report files are downloaded from the SensorGrid web console.');
 }

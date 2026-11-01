@@ -1,8 +1,9 @@
-// SUMMARY: The shared maths behind every province card: how many sensors report, the share of readings in range over the
-// last 24 hours, the readings captured today, and the current average of each parameter.
+// SUMMARY: The shared maths behind every province card: how many sensors report, the share of readings in range and the number of
+// readings in the last hour, and the current average of each parameter.
 // MVVM: ViewModel helper. Home, Sites, Province detail and Reports all need these numbers, so they live here once
 // instead of being copied into four ViewModels. It reads from the repositories and has no Flutter imports.
-import '../core/app_config.dart';
+// The gateway sends a reading about every 6 seconds, so the card looks at the LAST HOUR (about 600 readings per sensor):
+// a whole day would be about 14,400 per sensor, read again every time a card refreshes.
 import '../models/entities.dart';
 import '../models/enums.dart';
 import '../models/rules.dart';
@@ -12,6 +13,9 @@ import '../repositories/repositories.dart';
 /// Shared maths for location cards (reporting sensors, share of readings in range, current averages).
 class LocationInsights {
   LocationInsights(this._locations, this._readings, this._clock);
+
+  /// How far back a card looks for "readings in range" and "readings".
+  static const window = Duration(hours: 1);
 
   final LocationRepository _locations;
   final ReadingRepository _readings;
@@ -27,6 +31,11 @@ class LocationInsights {
     return true;
   }
 
+  /// True when the probe sent a row of zeros (moisture, conductivity, N, P and K all 0): it is not reading the soil.
+  /// Such rows are left out of the figures, the same rule as the web console.
+  static bool isEmpty(Reading r) => [Parameter.soilMoisture, Parameter.conductivity, Parameter.nitrogen, Parameter.phosphorus, Parameter.potassium]
+      .every((p) => (r.values[p] ?? 0) == 0);
+
   Future<LocationCardData> card(Location loc) async {
     final now = _clock.nowUtc();
     final sensors = (await _locations.sensors(loc.id)).where((s) => s.isActive).toList();
@@ -39,16 +48,12 @@ class LocationInsights {
         if (statuses[s.id] != null && !SensorRules.isOffline(statuses[s.id]!.lastCommunication, now)) s.id
     };
 
-    // Readings of the last 24 hours, to count the share inside the bands and the readings captured today.
-    final localNow = now.add(AppConfig.southAfricaOffset);
-    final midnightUtc = DateTime.utc(localNow.year, localNow.month, localNow.day).subtract(AppConfig.southAfricaOffset);
-    var total = 0, good = 0, today = 0;
-    for (final s in sensors) {
-      for (final r in await _readings.readings(loc.id, s.id, now.subtract(const Duration(hours: 24)), now)) {
-        total++;
-        if (allInRange(r, bands)) good++;
-        if (!r.capturedAt.isBefore(midnightUtc)) today++;
-      }
+    // Readings of the last hour (all sensors at once), to count them and the share inside the bands.
+    final recent = await Future.wait(sensors.map((s) => _readings.readings(loc.id, s.id, now.subtract(window), now)));
+    var total = 0, good = 0;
+    for (final r in recent.expand((x) => x).where((r) => !isEmpty(r))) {
+      total++;
+      if (allInRange(r, bands)) good++;
     }
 
     // Current average of each parameter across the sensors that report and count towards the average.
@@ -63,8 +68,8 @@ class LocationInsights {
       location: loc,
       sensorsReporting: reportingIds.length,
       sensorsTotal: sensors.length,
-      readingsToday: today,
-      inRangePercent: total == 0 ? 0 : (100 * good / total).round(),
+      readingsLastHour: total,
+      inRangePercent: total == 0 ? null : (100 * good / total).round(),
       averages: averages,
     );
   }

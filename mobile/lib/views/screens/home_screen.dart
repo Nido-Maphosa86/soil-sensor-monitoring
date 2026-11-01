@@ -27,7 +27,7 @@ class HomeScreen extends StatelessWidget {
         child: Consumer<HomeViewModel>(
           builder: (context, vm, _) => ViewModelBody<HomeData>(
             viewModel: vm,
-            builder: (context, data) => TabPage(children: [
+            builder: (context, data) => TabPage(onRefresh: vm.reload, children: [
               Row(children: [
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -69,14 +69,15 @@ class _NetworkCard extends StatelessWidget {
           Row(children: [
             Text('Sensor network', style: sgText(13, weight: FontWeight.w600, color: const Color(0xFF9FB5AC))),
             const Spacer(),
+            // "Live" only while at least one sensor reports; otherwise a grey "Offline"
             Container(
               height: 24,
               padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(color: const Color(0x2961C9A0), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: data.reporting > 0 ? const Color(0x2961C9A0) : const Color(0x1AFFFFFF), borderRadius: BorderRadius.circular(12)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Container(width: 6, height: 6, decoration: const BoxDecoration(color: Sg.mint, shape: BoxShape.circle)),
+                Container(width: 6, height: 6, decoration: BoxDecoration(color: data.reporting > 0 ? Sg.mint : Sg.offline, shape: BoxShape.circle)),
                 const SizedBox(width: 6),
-                Text('Live', style: sgText(12, weight: FontWeight.w600, color: Sg.mint)),
+                Text(data.reporting > 0 ? 'Live' : 'Offline', style: sgText(12, weight: FontWeight.w600, color: data.reporting > 0 ? Sg.mint : const Color(0xFFC9D3CF))),
               ]),
             ),
           ]),
@@ -114,7 +115,7 @@ class _NetworkCard extends StatelessWidget {
           ]),
           const Padding(padding: EdgeInsets.symmetric(vertical: 13), child: Divider(height: 1, color: Color(0x1AFFFFFF))),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _stat('${data.readingsToday}', 'Readings today'),
+            _stat('${data.readingsLastHour}', 'Readings, last hour'),
             _stat('${data.openAlerts}', 'Open alerts'),
             _stat(hhmm(data.lastSync), 'Last sync'),
           ]),
@@ -173,7 +174,7 @@ class LocationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tone = card.optimal ? Tone.ok : Tone.warn;
+    final tone = !card.hasReadings ? Tone.off : card.optimal ? Tone.ok : Tone.warn;
     final p = [Parameter.soilMoisture, Parameter.soilTemperature, Parameter.ph];
     return SgCard(
       margin: const EdgeInsets.only(bottom: 12),

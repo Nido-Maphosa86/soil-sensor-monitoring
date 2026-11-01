@@ -1,16 +1,21 @@
 // SUMMARY: The app-wide ViewModel: who is signed in, and a "data changed" signal.
 // MVVM: ViewModel. main.dart creates ONE SessionViewModel for the whole app. The sign-in screen fills it, the profile empties it,
 // and every screen ViewModel listens to its data signal: when an alert is acknowledged or resolved, Home, Sites, Alerts,
-// Reports and the tab badge load their data again.
+// Reports and the tab badge load their data again. It also owns [live], which follows changes made elsewhere (the gateway,
+// the alert checker on the web server, colleagues) while someone is signed in.
 import 'package:flutter/foundation.dart';
 
 import '../models/entities.dart';
 import '../repositories/repository_set.dart';
+import 'live_signals.dart';
 
 class SessionViewModel extends ChangeNotifier {
-  SessionViewModel(this._repositories);
+  SessionViewModel(this._repositories) : live = LiveSignals(_repositories);
 
   final RepositorySet _repositories;
+
+  /// Changes arriving from Firebase while someone is signed in (alerts at once, readings about every 6 seconds).
+  final LiveSignals live;
 
   AppUser? _user;
   int _dataVersion = 0;
@@ -26,6 +31,7 @@ class SessionViewModel extends ChangeNotifier {
 
   void signedIn(AppUser user) {
     _user = user;
+    live.start(user);
     notifyListeners();
   }
 
@@ -42,6 +48,7 @@ class SessionViewModel extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    live.stop();
     await _repositories.auth.signOut();
     _user = null;
     notifyListeners();

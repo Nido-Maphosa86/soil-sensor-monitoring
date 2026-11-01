@@ -1,13 +1,17 @@
-// SUMMARY: The ViewModel of M5 Reading trend: one parameter of one sensor over 24 hours, 7 days or 30 days, with its target band,
-// the lowest, average and highest values, and the change against the period before. No advice text: only numbers.
+// SUMMARY: The ViewModel of M5 Reading trend: one parameter of one sensor over 15 minutes, 24 hours, 7 days or 30 days, with its
+// target band and the lowest, average and highest values. No advice text: only numbers.
+// The gateway sends a reading about every 6 seconds. 15 minutes reads every reading and averages them per 10 seconds, and refreshes by
+// itself; the longer ranges take ONE reading per step (5 minutes, 1 hour, 6 hours), so a week is about 170 small reads instead of
+// 100,000 rows. Rows of zeros (the probe not in the soil) are left out, the same rule as the web console.
 // MVVM: ViewModel. Choosing another range or another sensor loads the trend again.
-import '../core/app_config.dart';
 import '../models/entities.dart';
 import '../models/enums.dart';
 import '../models/rules.dart';
 import '../models/screen_models.dart';
 import '../repositories/repository_set.dart';
 import 'base_view_model.dart';
+import 'live_signals.dart';
+import 'location_insights.dart';
 
 class TrendViewModel extends LoadingViewModel<TrendData> {
   TrendViewModel(this._repositories, super.session, {required this.locationId, required this.parameter});
@@ -16,10 +20,14 @@ class TrendViewModel extends LoadingViewModel<TrendData> {
   final String locationId;
   final Parameter parameter;
 
-  TrendRange _range = TrendRange.days7;
+  TrendRange _range = TrendRange.minutes15;
   String? _sensorId; // null means "the first sensor of the province"
 
   TrendRange get range => _range;
+
+  /// Only the 15-minute chart follows new readings; the longer ones would barely change.
+  @override
+  Set<LiveTopic> get liveTopics => _range == TrendRange.minutes15 ? const {LiveTopic.readings} : const {};
 
   void setRange(TrendRange value) {
     _range = value;
@@ -31,8 +39,8 @@ class TrendViewModel extends LoadingViewModel<TrendData> {
     load();
   }
 
-  /// "day", "week" or "month": the period the change is compared with.
-  String get comparedWith => _range == TrendRange.hours24 ? 'day' : _range == TrendRange.days7 ? 'week' : 'month';
+  /// The next longer range, offered when the chosen one has no readings (null after 30 days).
+  TrendRange? get longer => _range.index + 1 < TrendRange.values.length ? TrendRange.values[_range.index + 1] : null;
 
   @override
   Future<TrendData> fetch() async {
@@ -43,43 +51,39 @@ class TrendViewModel extends LoadingViewModel<TrendData> {
     final range = _range;
     final loc = (await locationRepo.locations([locationId])).first;
     final sensors = (await locationRepo.sensors(locationId)).where((s) => s.isActive).toList();
+    if (sensors.isEmpty) throw const RuleViolation('This province has no active sensors yet.');
     final chosen = _sensorId ?? sensors.first.id;
     final band = (await locationRepo.thresholds(locationId)).where((t) => t.parameter == parameter).cast<Threshold?>().firstWhere((_) => true, orElse: () => null);
 
-    final readings = await readingRepo.readings(locationId, chosen, now.subtract(range.span), now);
-    final values = [for (final r in readings) if (r.values[parameter] != null) (r.capturedAt, r.values[parameter]!)];
+    // the newest value and when it arrived, for "Now" (or "Last known" when the sensor is silent)
+    final latest = (await readingRepo.latestPerSensor(locationId))[chosen];
+    final from = now.subtract(range.span);
+    final rows = range.usesEveryReading
+        ? await readingRepo.readings(locationId, chosen, from, now)
+        : await readingRepo.sample(locationId, chosen, from, now, range.step);
+    final values = [
+      for (final r in rows)
+        if (!LocationInsights.isEmpty(r) && r.values[parameter] != null) (r.capturedAt, r.values[parameter]!)
+    ];
 
-    // Short ranges show every reading; 7 and 30 days show one average per South African day.
+    // 15 minutes: the average of each 10 seconds. Longer ranges: already one reading per step.
     final points = <TrendPoint>[];
-    if (range == TrendRange.hours24) {
+    if (range.usesEveryReading) {
+      final buckets = <int, List<double>>{};
+      for (final v in values) {
+        buckets.putIfAbsent(v.$1.difference(from).inMilliseconds ~/ range.step.inMilliseconds, () => []).add(v.$2);
+      }
+      for (final k in buckets.keys.toList()..sort()) {
+        final list = buckets[k]!;
+        points.add(TrendPoint(from.add(range.step * k + range.step ~/ 2), list.reduce((a, b) => a + b) / list.length));
+      }
+    } else {
       for (final v in values) {
         points.add(TrendPoint(v.$1, v.$2));
       }
-    } else {
-      final byDay = <DateTime, List<double>>{};
-      for (final v in values) {
-        final d = v.$1.add(AppConfig.southAfricaOffset);
-        byDay.putIfAbsent(DateTime.utc(d.year, d.month, d.day), () => []).add(v.$2);
-      }
-      final days = byDay.keys.toList()..sort();
-      for (final d in days) {
-        final list = byDay[d]!;
-        points.add(TrendPoint(d.subtract(AppConfig.southAfricaOffset).add(const Duration(hours: 12)), list.reduce((a, b) => a + b) / list.length));
-      }
     }
 
-    final all = [for (final v in values) v.$2];
-    final avg = all.isEmpty ? 0.0 : all.reduce((a, b) => a + b) / all.length;
-
-    // The change of the average against the period before (null when there is nothing to compare).
-    final before = await readingRepo.readings(locationId, chosen, now.subtract(range.span * 2), now.subtract(range.span));
-    final beforeValues = [for (final r in before) if (r.values[parameter] != null) r.values[parameter]!];
-    double? change;
-    if (beforeValues.isNotEmpty && avg != 0) {
-      final prev = beforeValues.reduce((a, b) => a + b) / beforeValues.length;
-      change = prev == 0 ? null : (avg - prev) / prev * 100;
-    }
-
+    final all = [for (final p in points) p.value];
     return TrendData(
       parameter: parameter,
       locationName: loc.name,
@@ -87,11 +91,12 @@ class TrendViewModel extends LoadingViewModel<TrendData> {
       sensorIds: [for (final s in sensors) s.id],
       range: range,
       points: points,
-      now: all.isEmpty ? 0 : all.last,
-      lowest: all.isEmpty ? 0 : all.reduce((a, b) => a < b ? a : b),
-      average: avg,
-      highest: all.isEmpty ? 0 : all.reduce((a, b) => a > b ? a : b),
-      changePercent: change,
+      now: latest?.values[parameter],
+      lastReadingAt: latest?.capturedAt,
+      offline: latest == null || SensorRules.isOffline(latest.capturedAt, now),
+      lowest: all.isEmpty ? null : all.reduce((a, b) => a < b ? a : b),
+      average: all.isEmpty ? null : all.reduce((a, b) => a + b) / all.length,
+      highest: all.isEmpty ? null : all.reduce((a, b) => a > b ? a : b),
       band: band,
     );
   }

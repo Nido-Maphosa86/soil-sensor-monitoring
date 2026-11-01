@@ -1,5 +1,5 @@
-// SUMMARY: The ViewModel of M9 Profile: the names of the assigned provinces, the three notification switches
-// (threshold breaches, sensor offline, daily summary at 07:00) and Sign out.
+// SUMMARY: The ViewModel of M9 Profile: the names of the assigned provinces, the two notification switches
+// (threshold breaches, sensor offline) and Sign out.
 // MVVM: ViewModel. An Administrator on the phone gets the same Standard User functions as everyone else (no admin pages on mobile).
 import '../models/enums.dart';
 import '../repositories/repository_set.dart';
@@ -18,14 +18,13 @@ class ProfileViewModel extends LoadingViewModel<Map<String, String>> {
   Future<Map<String, String>> fetch() async => {for (final l in await _repositories.locations.locations(user.locationIds)) l.id: l.name};
 
   /// Saves one notification switch. Returns an error message, or null when it was saved.
-  Future<String?> setNotification({bool? breach, bool? offline, bool? daily}) async {
+  Future<String?> setNotification({bool? breach, bool? offline}) async {
     final current = user;
     try {
       final updated = await _repositories.profile.saveNotificationSettings(
         current,
         breach: breach ?? current.notifyBreach,
         offline: offline ?? current.notifyOffline,
-        daily: daily ?? current.notifyDaily,
       );
       session.updated(updated);
       return null;

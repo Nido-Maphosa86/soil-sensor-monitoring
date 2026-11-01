@@ -1,6 +1,6 @@
 // SUMMARY: The ready-to-show data each screen needs (home summary, location detail, trend, alerts overview, reports).
 // MVVM: Model. ViewModels build these from the repositories; Views only draw them.
-import 'entities.dart'; // Location, Sensor, AlertItem, Report...
+import 'entities.dart'; // Location, Sensor, AlertItem...
 import 'enums.dart'; // Parameter, BandStatus, TrendRange
 
 /// The state of one sensor square in the home network grid.
@@ -19,7 +19,7 @@ class LocationCardData {
     required this.location,
     required this.sensorsReporting,
     required this.sensorsTotal,
-    required this.readingsToday,
+    required this.readingsLastHour,
     required this.inRangePercent,
     required this.averages,
   });
@@ -27,15 +27,21 @@ class LocationCardData {
   final Location location;
   final int sensorsReporting; // for example 4 of 5 reporting
   final int sensorsTotal;
-  final int readingsToday;
-  final int inRangePercent;
+  final int readingsLastHour; // rows of zeros left out
+
+  /// The share of the last hour's readings inside every band, or null when there were none.
+  final int? inRangePercent;
 
   /// The current average of each parameter across the reporting sensors.
   final Map<Parameter, double> averages;
 
+  bool get hasReadings => inRangePercent != null;
+
   /// ASSUMPTION: 70% or more of readings in range is "Optimal", otherwise "Attention".
-  bool get optimal => inRangePercent >= 70;
-  String get statusLabel => optimal ? 'Optimal' : 'Attention';
+  bool get optimal => (inRangePercent ?? 0) >= 70;
+
+  /// "Offline" when no sensor reports, "No data" when they report only rows of zeros, otherwise Optimal or Attention.
+  String get statusLabel => sensorsReporting == 0 ? 'Offline' : !hasReadings ? 'No data' : optimal ? 'Optimal' : 'Attention';
 }
 
 // Everything the Home tab shows.
@@ -46,7 +52,7 @@ class HomeData {
     required this.reporting,
     required this.total,
     required this.grid,
-    required this.readingsToday,
+    required this.readingsLastHour,
     required this.openAlerts,
     required this.topAlert,
     required this.locations,
@@ -58,7 +64,7 @@ class HomeData {
   final int reporting;
   final int total;
   final List<GridRow> grid;
-  final int readingsToday;
+  final int readingsLastHour;
   final int openAlerts;
   final AlertItem? topAlert; // the most urgent open alert, or empty when none
   final List<LocationCardData> locations;
@@ -69,13 +75,16 @@ class HomeData {
 
 // One parameter tile on the province screen: value, band and traffic light.
 class ParameterTile {
-  const ParameterTile({required this.parameter, required this.value, required this.min, required this.max, required this.status});
+  const ParameterTile({required this.parameter, required this.value, required this.min, required this.max, required this.status, this.lastKnown = false});
 
   final Parameter parameter;
   final double value;
   final double min;
   final double max;
   final BandStatus status;
+
+  /// True when every sensor is offline: the value is the last one received, shown in grey.
+  final bool lastKnown;
 }
 
 // One line in the province screen's sensor list.
@@ -94,10 +103,15 @@ class SensorRow {
 
 // Everything the province (site) detail screen shows.
 class LocationDetail {
-  const LocationDetail({required this.card, required this.lastUpdated, required this.tiles, required this.sensors});
+  const LocationDetail({required this.card, required this.lastUpdated, required this.live, required this.tiles, required this.sensors});
 
   final LocationCardData card;
-  final DateTime lastUpdated;
+
+  /// When the newest reading of any sensor arrived (null when none has ever reported).
+  final DateTime? lastUpdated;
+
+  /// True while at least one sensor reports. When false, the tiles hold the last values received.
+  final bool live;
   final List<ParameterTile> tiles;
   final List<SensorRow> sensors;
 
@@ -121,10 +135,11 @@ class TrendData {
     required this.range,
     required this.points,
     required this.now,
+    required this.lastReadingAt,
+    required this.offline,
     required this.lowest,
     required this.average,
     required this.highest,
-    required this.changePercent,
     required this.band,
   });
 
@@ -134,14 +149,21 @@ class TrendData {
   final List<String> sensorIds; // the sensors to choose from
   final TrendRange range;
   final List<TrendPoint> points;
-  final double now;
-  final double lowest;
-  final double average;
-  final double highest;
 
-  /// Change of the average against the period before, in percent (null when there is nothing to compare).
-  final double? changePercent;
+  /// The newest value of the sensor (null when it has never reported), and when it arrived.
+  final double? now;
+  final DateTime? lastReadingAt;
+
+  /// True when the sensor has been silent for 1 minute or more.
+  final bool offline;
+
+  /// Of the points shown; null when the period has no readings.
+  final double? lowest;
+  final double? average;
+  final double? highest;
   final Threshold? band; // drawn as the shaded band behind the line
+
+  bool get isEmpty => points.isEmpty;
 }
 
 // The filter chips on the Alerts tab.
@@ -202,20 +224,19 @@ class NutrientGroup {
   final double potassium;
 }
 
-// One site's share of readings in range, for the Reports tab.
+// One site's share of readings in range, for the Reports tab (null when there were no readings).
 class InRangeRow {
   const InRangeRow(this.locationName, this.percent);
   final String locationName;
-  final int percent;
+  final int? percent;
 }
 
-// Everything the Reports tab shows.
+// Everything the Reports tab shows. Report files are made and downloaded on the web console.
 class ReportsData {
-  const ReportsData({required this.periodLabel, required this.nutrients, required this.inRange, required this.allSites, required this.reports});
+  const ReportsData({required this.periodLabel, required this.nutrients, required this.inRange, required this.allSites});
 
   final String periodLabel;
   final List<NutrientGroup> nutrients;
   final List<InRangeRow> inRange;
-  final int allSites; // the in-range percent across all sites together
-  final List<Report> reports;
+  final int? allSites; // the in-range percent across all sites together (null when there were no readings)
 }

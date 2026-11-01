@@ -1,11 +1,13 @@
 // SUMMARY: The ViewModel of M2 Home: the greeting time, the sensor network summary (for example 14 of 15 reporting, one square
 // per sensor), the newest open alert and a card for each of the person's provinces.
+// It refreshes by itself: at once when an alert changes, and every 30 seconds while readings arrive.
 // MVVM: ViewModel. Only the person's assigned provinces are read (rule 4).
 import '../models/enums.dart';
 import '../models/rules.dart';
 import '../models/screen_models.dart';
 import '../repositories/repository_set.dart';
 import 'base_view_model.dart';
+import 'live_signals.dart';
 import 'location_insights.dart';
 
 class HomeViewModel extends LoadingViewModel<HomeData> {
@@ -13,6 +15,12 @@ class HomeViewModel extends LoadingViewModel<HomeData> {
 
   final RepositorySet _repositories;
   final LocationInsights _insights;
+
+  @override
+  Set<LiveTopic> get liveTopics => const {LiveTopic.alerts, LiveTopic.readings};
+
+  @override
+  Duration get liveEvery => const Duration(seconds: 30);
 
   /// "Good morning," / "Good afternoon," / "Good evening," in South African time.
   String greeting(int localHour) => localHour < 12 ? 'Good morning,' : localHour < 18 ? 'Good afternoon,' : 'Good evening,';
@@ -27,7 +35,7 @@ class HomeViewModel extends LoadingViewModel<HomeData> {
 
     final cards = <LocationCardData>[];
     final grid = <GridRow>[];
-    var reporting = 0, total = 0, today = 0;
+    var reporting = 0, total = 0, lastHour = 0;
     DateTime lastSync = now.subtract(const Duration(days: 365));
 
     for (final loc in locations) {
@@ -35,7 +43,7 @@ class HomeViewModel extends LoadingViewModel<HomeData> {
       cards.add(card);
       reporting += card.sensorsReporting;
       total += card.sensorsTotal;
-      today += card.readingsToday;
+      lastHour += card.readingsLastHour;
 
       // One square per active sensor: offline, breach (a critical alert), warning (another alert) or in range.
       final sensors = (await locationRepo.sensors(loc.id)).where((s) => s.isActive).toList();
@@ -67,7 +75,7 @@ class HomeViewModel extends LoadingViewModel<HomeData> {
       reporting: reporting,
       total: total,
       grid: grid,
-      readingsToday: today,
+      readingsLastHour: lastHour,
       openAlerts: open.length,
       topAlert: open.isEmpty ? null : open.first,
       locations: cards,

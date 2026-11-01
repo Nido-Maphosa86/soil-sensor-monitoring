@@ -21,8 +21,6 @@ String dayLabel(DateTime utc, DateTime nowUtc) {
 
 String longDate(DateTime utc) => DateFormat('EEEE, d MMMM').format(sast(utc));
 
-String monthYear(DateTime utc) => DateFormat('MMM yyyy').format(sast(utc));
-
 /// "Raised today at 06:30" style text.
 String raisedText(DateTime utc, DateTime nowUtc) {
   final day = dayLabel(utc, nowUtc);
@@ -41,9 +39,6 @@ String ago(DateTime utc, DateTime nowUtc) {
 
 /// A value with the right number of decimals: whole numbers for mg/kg and µS/cm, one decimal otherwise.
 String num1(double v, {int decimals = 1}) => v.toStringAsFixed(decimals);
-
-String fileSize(int bytes) =>
-    bytes >= 1024 * 1024 ? '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB' : '${(bytes / 1024).round()} KB';
 
 String initials(String name) {
   final parts = name.split(RegExp(r'[ .]+')).where((p) => p.isNotEmpty).toList();

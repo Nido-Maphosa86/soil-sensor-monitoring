@@ -17,7 +17,6 @@ class RepositorySet {
     required this.readings,
     required this.alerts,
     required this.profile,
-    required this.reports,
   });
 
   final Clock clock;
@@ -26,7 +25,6 @@ class RepositorySet {
   final ReadingRepository readings;
   final AlertRepository alerts;
   final ProfileRepository profile;
-  final ReportRepository reports;
 
   /// CONNECT FIREBASE HERE: uses the Firebase app started in main.dart with the settings from lib/core/app_config.dart.
   factory RepositorySet.firebase(FirebaseApp app) {
@@ -39,7 +37,6 @@ class RepositorySet {
       readings: FirebaseReadingRepository(backend, locations),
       alerts: FirebaseAlertRepository(backend),
       profile: FirebaseProfileRepository(backend),
-      reports: FirebaseReportRepository(),
     );
   }
 }

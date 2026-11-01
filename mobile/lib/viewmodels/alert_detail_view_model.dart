@@ -5,6 +5,7 @@
 //   alert state only moves forward (Open > Acknowledged > Resolved, or Open > Resolved);
 //   rule 4: only alerts of the person's own provinces.
 // After a successful action it tells the session that data changed, so the list, Home and the badge reload.
+// If a colleague (or the web console) acts on the same alert while it is open, the page shows it at once.
 import '../models/entities.dart';
 import '../models/enums.dart';
 import '../models/rules.dart';
@@ -12,6 +13,7 @@ import '../models/screen_models.dart';
 import '../repositories/repositories.dart';
 import '../repositories/repository_set.dart';
 import 'base_view_model.dart';
+import 'live_signals.dart';
 
 class AlertDetailViewModel extends LoadingViewModel<AlertDetail> {
   AlertDetailViewModel(this._repositories, super.session, {required this.locationId, required this.alertId});
@@ -32,6 +34,12 @@ class AlertDetailViewModel extends LoadingViewModel<AlertDetail> {
   /// The detail page closes after an action, so it does not need to reload when data changes.
   @override
   bool get reloadOnDataChange => false;
+
+  @override
+  Set<LiveTopic> get liveTopics => const {LiveTopic.alerts};
+
+  @override
+  Duration get liveEvery => const Duration(seconds: 2);
 
   /// The longest note allowed.
   int get maxNoteLength => AlertRules.maxNoteLength;

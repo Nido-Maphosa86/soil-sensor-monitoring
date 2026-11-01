@@ -1,4 +1,4 @@
-// SUMMARY: The plain data objects of SensorGrid (user, location, sensor, reading, threshold, alert, report...).
+// SUMMARY: The plain data objects of SensorGrid (user, location, sensor, reading, threshold, alert...).
 // MVVM: Model. The field names follow the Realtime Database tree in the database design (SRS v4.0), so the Firebase code maps them one to one.
 // All times are UTC.
 import 'enums.dart'; // the fixed lists of choices from the first file
@@ -13,9 +13,8 @@ class AppUser {
     required this.status,
     required this.createdAt,
     required this.locationIds,
-    this.notifyBreach = true, // the notification switches start on, except the daily summary
+    this.notifyBreach = true, // the notification switches start on
     this.notifyOffline = true,
-    this.notifyDaily = false,
   });
 
   final String uid; // the Firebase Authentication user id
@@ -29,10 +28,9 @@ class AppUser {
   final List<String> locationIds;
   final bool notifyBreach;
   final bool notifyOffline;
-  final bool notifyDaily;
 
   // a copy with some notification switches changed (used by the profile screen)
-  AppUser copyWith({bool? notifyBreach, bool? notifyOffline, bool? notifyDaily}) => AppUser(
+  AppUser copyWith({bool? notifyBreach, bool? notifyOffline}) => AppUser(
         uid: uid,
         name: name,
         email: email,
@@ -42,7 +40,6 @@ class AppUser {
         locationIds: locationIds,
         notifyBreach: notifyBreach ?? this.notifyBreach, // ?? keeps the old value when no new one is given
         notifyOffline: notifyOffline ?? this.notifyOffline,
-        notifyDaily: notifyDaily ?? this.notifyDaily,
       );
 }
 
@@ -82,7 +79,6 @@ class Sensor {
     required this.installationDate,
     required this.depthCm,
     required this.modbusSlaveId,
-    required this.firmwareVersion,
   });
 
   final String locationId;
@@ -94,7 +90,6 @@ class Sensor {
   final String installationDate;
   final int depthCm; // how deep it sits in the soil
   final int modbusSlaveId; // its address on the gateway's wire
-  final String firmwareVersion;
 }
 
 /// When a sensor last reported: the timestamp of `readings/{sensor_id}/latest`.
@@ -207,33 +202,4 @@ class AppNotification {
   final String locationId;
   final DateTime createdAt;
   final bool isRead;
-}
-
-// A report file made on the web console (`reports/{report_id}`).
-class Report {
-  const Report({
-    required this.id,
-    required this.generatedBy,
-    required this.name,
-    required this.format,
-    required this.reportType,
-    required this.periodStart,
-    required this.periodEnd,
-    required this.generatedAt,
-    required this.filePath,
-    required this.fileSize,
-    required this.locationIds,
-  });
-
-  final String id;
-  final String generatedBy;
-  final String name;
-  final ReportFormat format;
-  final String reportType;
-  final String periodStart; // yyyy-MM-dd
-  final String periodEnd;
-  final DateTime generatedAt;
-  final String filePath; // path in Cloud Storage
-  final int fileSize; // in bytes
-  final List<String> locationIds;
 }

@@ -26,7 +26,7 @@ class AlertsScreen extends StatelessWidget {
             viewModel: vm,
             builder: (context, o) {
               final groups = vm.groups;
-              return TabPage(children: [
+              return TabPage(onRefresh: vm.reload, children: [
                 const SizedBox(height: 10),
                 Text('Alerts', style: sgText(28, weight: FontWeight.w700, spacing: -0.7, height: 1.15)),
                 const SizedBox(height: 4),

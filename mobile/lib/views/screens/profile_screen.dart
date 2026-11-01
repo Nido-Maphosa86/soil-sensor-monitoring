@@ -1,5 +1,5 @@
-// SUMMARY: Screen M9, Profile (opened from the avatar on Home): account details, the assigned provinces, the three notification
-// switches (threshold breaches, sensor offline, daily summary at 07:00), and Sign out.
+// SUMMARY: Screen M9, Profile (opened from the avatar on Home): account details, the assigned provinces, the two notification
+// switches (threshold breaches, sensor offline), and Sign out.
 // An Administrator who signs in on the phone gets the same Standard User functions as everyone else.
 // MVVM: View. ProfileViewModel saves the switches and signs out; this file only draws.
 import 'package:flutter/material.dart';
@@ -15,8 +15,8 @@ import '../widgets/widgets.dart';
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
-  static Future<void> _toggle(BuildContext context, ProfileViewModel vm, {bool? breach, bool? offline, bool? daily}) async {
-    final error = await vm.setNotification(breach: breach, offline: offline, daily: daily);
+  static Future<void> _toggle(BuildContext context, ProfileViewModel vm, {bool? breach, bool? offline}) async {
+    final error = await vm.setNotification(breach: breach, offline: offline);
     if (error != null && context.mounted) showToast(context, 'Could not save', detail: error, error: true);
   }
 
@@ -80,8 +80,6 @@ class ProfileScreen extends StatelessWidget {
               _switch(Icons.warning_amber_rounded, Sg.tCrit, Sg.outOfRange, 'Threshold breaches', user.notifyBreach, (v) => _toggle(context, vm, breach: v)),
               const Divider(height: 1, indent: 64, color: Sg.line2),
               _switch(Icons.wifi_off_rounded, Sg.tOff, Sg.offline, 'Sensor offline', user.notifyOffline, (v) => _toggle(context, vm, offline: v)),
-              const Divider(height: 1, indent: 64, color: Sg.line2),
-              _switch(Icons.schedule_rounded, Sg.tOk, Sg.inRange, 'Daily summary at 07:00', user.notifyDaily, (v) => _toggle(context, vm, daily: v)),
             ]),
           ),
           const SizedBox(height: 14),

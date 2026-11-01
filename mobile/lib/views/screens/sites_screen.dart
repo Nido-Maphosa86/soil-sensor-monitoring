@@ -23,7 +23,7 @@ class SitesScreen extends StatelessWidget {
             viewModel: vm,
             builder: (context, all) {
               final shown = vm.shown;
-              return TabPage(children: [
+              return TabPage(onRefresh: vm.reload, children: [
                 const SizedBox(height: 10),
                 Text('Sites', style: sgText(28, weight: FontWeight.w700, spacing: -0.7, height: 1.15)),
                 const SizedBox(height: 4),
@@ -72,7 +72,7 @@ class _SiteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tone = card.optimal ? Tone.ok : Tone.warn;
+    final tone = !card.hasReadings ? Tone.off : card.optimal ? Tone.ok : Tone.warn;
     final loc = card.location;
     return SgCard(
       padding: const EdgeInsets.all(18),
@@ -97,16 +97,16 @@ class _SiteCard extends StatelessWidget {
         ]),
         const SizedBox(height: 16),
         Row(children: [
-          Text('Readings in range', style: sgText(13, color: Sg.tx2)),
+          Text('Readings in range, last hour', style: sgText(13, color: Sg.tx2)),
           const Spacer(),
-          Text('${card.inRangePercent}%', style: sgText(15, weight: FontWeight.w600, color: tone.fg)),
+          Text(card.hasReadings ? '${card.inRangePercent}%' : '–', style: sgText(15, weight: FontWeight.w600, color: tone.fg)),
         ]),
         const SizedBox(height: 8),
-        ShareBar(card.inRangePercent / 100, tone.fg),
+        ShareBar((card.inRangePercent ?? 0) / 100, tone.fg),
         const Padding(padding: EdgeInsets.only(top: 14, bottom: 12), child: Divider(height: 1, color: Sg.line2)),
         Row(children: [
           _stat('Sensors', '${card.sensorsReporting} of ${card.sensorsTotal}'),
-          _stat('Readings today', '${card.readingsToday}'),
+          _stat('Readings, 1 h', '${card.readingsLastHour}'),
           _stat('Crop', loc.crop),
         ]),
       ]),

@@ -16,16 +16,21 @@ import 'sites_screen.dart';
 /// The padding that keeps content clear of the floating tab bar.
 const double tabBarClearance = 120;
 
-/// A scrolling page used by the four tabs.
+/// A scrolling page used by the four tabs. Pulling it down loads the tab again ([onRefresh]).
 class TabPage extends StatelessWidget {
-  const TabPage({super.key, required this.children});
+  const TabPage({super.key, required this.children, this.onRefresh});
   final List<Widget> children;
+  final Future<void> Function()? onRefresh;
 
   @override
-  Widget build(BuildContext context) => SafeArea(
-        bottom: false,
-        child: ListView(padding: const EdgeInsets.fromLTRB(20, 8, 20, tabBarClearance), children: children),
-      );
+  Widget build(BuildContext context) {
+    final list = ListView(
+        physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(20, 8, 20, tabBarClearance), children: children);
+    return SafeArea(
+      bottom: false,
+      child: onRefresh == null ? list : RefreshIndicator(color: Sg.brand, onRefresh: onRefresh!, child: list),
+    );
+  }
 }
 
 class MainShell extends StatelessWidget {

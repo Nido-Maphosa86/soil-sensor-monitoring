@@ -1,6 +1,6 @@
 // SUMMARY: The ViewModel of M6 Alerts: the counters (open, acknowledged, resolved), the chosen filter
 // (All, Critical, Warning, Offline, Acknowledged, Resolved) and the matching alerts grouped by day, newest first.
-// MVVM: ViewModel. Only alerts of the person's own provinces are shown (rule 4).
+// MVVM: ViewModel. Only alerts of the person's own provinces are shown (rule 4). A new or changed alert appears at once.
 import '../core/format.dart';
 import '../models/entities.dart';
 import '../models/enums.dart';
@@ -8,6 +8,7 @@ import '../models/rules.dart';
 import '../models/screen_models.dart';
 import '../repositories/repository_set.dart';
 import 'base_view_model.dart';
+import 'live_signals.dart';
 
 class AlertsViewModel extends LoadingViewModel<AlertsOverview> {
   AlertsViewModel(this._repositories, super.session);
@@ -16,6 +17,12 @@ class AlertsViewModel extends LoadingViewModel<AlertsOverview> {
   AlertFilter _filter = AlertFilter.all;
 
   AlertFilter get filter => _filter;
+
+  @override
+  Set<LiveTopic> get liveTopics => const {LiveTopic.alerts};
+
+  @override
+  Duration get liveEvery => const Duration(seconds: 2);
 
   void setFilter(AlertFilter value) {
     _filter = value;
