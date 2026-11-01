@@ -67,12 +67,22 @@ DateTime? _time(Map<String, Object?> m, String k) => m[k] is num ? DateTime.from
 
 int _ms(DateTime t) => t.toUtc().millisecondsSinceEpoch;
 
-/// Reading and status keys are the capture time as yyyyMMddHHmm in UTC, so a period is a key range.
-String timeKey(DateTime t) {
-  final u = t.toUtc();
-  String two(int n) => n.toString().padLeft(2, '0');
-  return '${u.year}${two(u.month)}${two(u.day)}${two(u.hour)}${two(u.minute)}';
+const _pushChars = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+
+/// The gateway's reading keys are Firebase push IDs, whose first 8 characters are the time they were made.
+/// So the first possible key at a time is this prefix, and a period is a key range.
+String pushIdPrefix(DateTime t) {
+  var ms = t.toUtc().millisecondsSinceEpoch;
+  final chars = List.filled(8, '-');
+  for (var i = 7; i >= 0; i--) {
+    chars[i] = _pushChars[ms % 64];
+    ms ~/= 64;
+  }
+  return chars.join();
 }
+
+/// The last possible push ID at a time: the prefix followed by the highest character.
+String lastPushIdAt(DateTime t) => '${pushIdPrefix(t)}${'z' * 12}';
 
 // ------------------------------------------------------------------ sign in
 
@@ -210,20 +220,10 @@ class FirebaseLocationRepository implements LocationRepository {
   Future<List<SensorStatus>> sensorStatuses(String locationId) async {
     final result = <SensorStatus>[];
     for (final s in await sensors(locationId)) {
-      // The newest status is the LAST key, so only one child is read.
-      final last = await _b.readByKey('sensor_status/$locationId/${s.id}', limitToLast: 1);
-      if (last.isEmpty) continue;
-      final m = _map(last.first.$2);
-      result.add(SensorStatus(
-        locationId: locationId,
-        sensorId: s.id,
-        batteryLevel: _int(m, 'battery_level'),
-        powerStatus: _str(m, 'power_status'),
-        signal: _str(m, 'signal', 'None'),
-        status: _str(m, 'status', 'online'),
-        lastCommunication: _time(m, 'last_communication') ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-        recordedAt: _time(m, 'recorded_at') ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
-      ));
+      // The gateway overwrites "latest" with every row, so its timestamp is when the sensor last reported.
+      final at = _time(_map(await _b.read('readings/${s.id}/latest')), 'timestamp');
+      if (at == null) continue;
+      result.add(SensorStatus(locationId: locationId, sensorId: s.id, lastCommunication: at));
     }
     return result;
   }
@@ -256,32 +256,44 @@ class FirebaseReadingRepository implements ReadingRepository {
   Future<Map<String, Reading>> latestPerSensor(String locationId) async {
     final result = <String, Reading>{};
     for (final s in await _locations.sensors(locationId)) {
-      final last = await _b.readByKey('readings/$locationId/${s.id}', limitToLast: 1); // the newest reading is the last key
-      if (last.isNotEmpty) result[s.id] = _reading(locationId, s.id, last.first.$1, last.first.$2);
+      final latest = await _b.read('readings/${s.id}/latest'); // the gateway overwrites "latest" with every row
+      if (latest != null) result[s.id] = _reading(locationId, s.id, latest);
     }
     return result;
   }
 
   @override
   Future<List<Reading>> readings(String locationId, String sensorId, DateTime fromUtc, DateTime toUtc) async {
-    // A period is a key range, so only the readings inside it are downloaded.
-    final rows = await _b.readByKey('readings/$locationId/$sensorId', startAt: timeKey(fromUtc), endAt: timeKey(toUtc));
-    return [for (final r in rows) _reading(locationId, sensorId, r.$1, r.$2)];
+    // A period is a key range of push IDs, so only the readings inside it are downloaded.
+    final rows = await _b.readByKey('readings/$sensorId/history', startAt: pushIdPrefix(fromUtc), endAt: lastPushIdAt(toUtc));
+    return [for (final r in rows) _reading(locationId, sensorId, r.$2)];
   }
 
-  static Reading _reading(String locationId, String sensorId, String key, Object? value) {
+  /// The gateway's own field names for each value ("device_id" and "humidity" are in the row too but not used).
+  static const _gatewayField = {
+    Parameter.soilMoisture: 'moisture',
+    Parameter.soilTemperature: 'temperature',
+    Parameter.conductivity: 'ec',
+    Parameter.ph: 'ph',
+    Parameter.nitrogen: 'nitrogen',
+    Parameter.phosphorus: 'phosphorus',
+    Parameter.potassium: 'potassium',
+  };
+
+  /// The gateway sends moisture as a raw number (281); divided by this it is a percentage (28.1 %). The web console uses the same value.
+  static const moistureDivisor = 10;
+
+  static Reading _reading(String locationId, String sensorId, Object? value) {
     final m = _map(value);
     final values = <Parameter, double>{};
     for (final p in Parameter.values) {
-      final v = _num(m, p.key);
-      if (v != null) values[p] = v; // an empty value means no reading, which is different from zero
+      final v = _num(m, _gatewayField[p]!);
+      if (v == null) continue; // an empty value means no reading, which is different from zero
+      values[p] = p == Parameter.soilMoisture ? (v / moistureDivisor * 10).round() / 10 : v;
     }
-    return Reading(locationId: locationId, sensorId: sensorId, capturedAt: _time(m, 'captured_at') ?? _fromKey(key), values: values);
+    return Reading(
+        locationId: locationId, sensorId: sensorId, capturedAt: _time(m, 'timestamp') ?? DateTime.fromMillisecondsSinceEpoch(0, isUtc: true), values: values);
   }
-
-  static DateTime _fromKey(String k) => k.length == 12
-      ? DateTime.utc(int.parse(k.substring(0, 4)), int.parse(k.substring(4, 6)), int.parse(k.substring(6, 8)), int.parse(k.substring(8, 10)), int.parse(k.substring(10, 12)))
-      : DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
 }
 
 // ------------------------------------------------------------------ alerts and notifications

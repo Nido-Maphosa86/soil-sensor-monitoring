@@ -26,11 +26,10 @@ enum AccountStatus {
   static AccountStatus fromStored(String s) => values.firstWhere((r) => r.stored == s, orElse: () => deactivated);
 }
 
-// Why an alert was raised: a value outside its band, a silent sensor, or a low battery.
+// Why an alert was raised: a value outside its band, or a silent sensor.
 enum AlertType {
   breach('Breach'),
-  offline('Offline'),
-  battery('Battery');
+  offline('Offline');
 
   const AlertType(this.stored);
   final String stored;
@@ -68,7 +67,8 @@ enum ReportFormat {
   static ReportFormat fromStored(String s) => values.firstWhere((r) => r.stored == s, orElse: () => pdf);
 }
 
-/// The seven stored values of a reading. Humidity is NOT stored.
+/// The seven values of a reading that the app uses. `key` is the name used for thresholds; the gateway's own field
+/// names are mapped in the reading repository. Humidity is in the gateway's rows but not used.
 enum Parameter {
   // database key, label on screen, unit, decimals shown
   soilMoisture('soil_moisture', 'Soil moisture', '%', 1),

@@ -97,27 +97,18 @@ class Sensor {
   final String firmwareVersion;
 }
 
-/// The latest health of one sensor (`sensor_status`).
+/// When a sensor last reported: the timestamp of `readings/{sensor_id}/latest`.
+/// The gateway sends nothing else about the sensor's health (no battery or signal).
 class SensorStatus {
   const SensorStatus({
     required this.locationId,
     required this.sensorId,
-    required this.batteryLevel,
-    required this.powerStatus,
-    required this.signal,
-    required this.status,
     required this.lastCommunication,
-    required this.recordedAt,
   });
 
   final String locationId;
   final String sensorId;
-  final int batteryLevel; // percent
-  final String powerStatus;
-  final String signal; // Strong, Fair, Weak or None
-  final String status; // online or offline, as reported by the gateway
-  final DateTime lastCommunication;
-  final DateTime recordedAt;
+  final DateTime lastCommunication; // the timestamp of the gateway's newest row
 }
 
 /// One set of seven values captured by a sensor.

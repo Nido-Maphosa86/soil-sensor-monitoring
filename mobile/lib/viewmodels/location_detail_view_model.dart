@@ -1,5 +1,5 @@
 // SUMMARY: The ViewModel of M4 / M4b, Province detail: the headline soil moisture, the other parameters against their bands
-// (in range, near limit, out of range), and each sensor's battery, signal, state and last communication.
+// (in range, near limit, out of range), and each sensor's state and last communication.
 // It also remembers which of the three tabs (Readings, Trends, Sensors) is open.
 // MVVM: ViewModel. It refuses a province that is not assigned to the person (rule 4).
 import '../models/enums.dart';
@@ -47,7 +47,7 @@ class LocationDetailViewModel extends LoadingViewModel<LocationDetail> {
       tiles.add(ParameterTile(parameter: p, value: v, min: b.minValue, max: b.maxValue, status: BandRules.status(v, b.minValue, b.maxValue)));
     }
 
-    // The state of each sensor (rule 2: 2 hours silent is Offline, battery below 25% is low).
+    // The state of each sensor (rule 2: 1 minute silent is Offline).
     final statuses = {for (final s in await locationRepo.sensorStatuses(locationId)) s.sensorId: s};
     final rows = <SensorRow>[];
     var lastUpdated = now.subtract(const Duration(days: 365));
@@ -58,12 +58,6 @@ class LocationDetailViewModel extends LoadingViewModel<LocationDetail> {
       if (!s.isActive || st == null || SensorRules.isOffline(st.lastCommunication, now)) {
         label = 'Offline';
         key = 'off';
-      } else if (SensorRules.isLowBattery(st.batteryLevel)) {
-        label = 'Battery low';
-        key = 'warn';
-      } else if (st.signal == 'Weak') {
-        label = 'Weak signal';
-        key = 'warn';
       } else {
         label = 'Online';
         key = 'ok';

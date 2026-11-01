@@ -1,25 +1,19 @@
 // SUMMARY: The four business rules of SensorGrid written as small functions, plus the agreed assumptions (marked ASSUMPTION).
 // MVVM: Model. ViewModels call these before every read or write instead of repeating the logic.
 //   1. A value outside its band is a Breach.
-//   2. No reading for 2 hours is an Offline alert. Battery below 25% is a Warning.
+//   2. No reading for 1 minute is an Offline alert (the gateway sends a reading about every 6 seconds).
 //   3. Acknowledge and Resolve both need a note.
 //   4. A Standard User sees only assigned locations (enforced in every ViewModel and, later, by Firebase Security Rules).
 import 'entities.dart'; // AppUser, used by the access rule
 import 'enums.dart'; // BandStatus, AlertSeverity, AlertState
 
-// Rule 2: when a sensor counts as offline or low on battery.
+// Rule 2: when a sensor counts as offline.
 class SensorRules {
-  /// Rule 2: this long without a reading means the sensor is offline.
-  static const Duration offlineAfter = Duration(hours: 2);
+  /// Rule 2: this long without a reading means the sensor is offline (the same limit as the web console).
+  static const Duration offlineAfter = Duration(minutes: 1);
 
-  /// Rule 2: battery below this percentage raises a Warning.
-  static const int lowBatteryPercent = 25;
-
-  // true when 2 hours or more have passed since the sensor last talked to the gateway
+  // true when 1 minute or more has passed since the sensor last talked to the gateway
   static bool isOffline(DateTime lastCommunicationUtc, DateTime nowUtc) => nowUtc.difference(lastCommunicationUtc) >= offlineAfter;
-
-  // true when the battery is below 25%
-  static bool isLowBattery(int batteryLevel) => batteryLevel < lowBatteryPercent;
 }
 
 // Rule 1: a value against its allowed band (min to max).
@@ -51,12 +45,11 @@ class SeverityRules {
   /// ASSUMPTION: a breach more than 20% of the band width outside the band is Critical.
   static const double criticalFraction = 0.20;
 
-  /// ASSUMPTION: Offline is Critical. Low battery is a Warning.
+  /// ASSUMPTION: Offline is Critical.
   static AlertSeverity forBreach(double value, double min, double max) =>
       BandRules.distanceOutside(value, min, max) > criticalFraction ? AlertSeverity.critical : AlertSeverity.warning;
 
   static const AlertSeverity forOffline = AlertSeverity.critical;
-  static const AlertSeverity forLowBattery = AlertSeverity.warning;
 }
 
 /// Thrown when a rule is broken (for example a missing note). The message is safe to show to the person.

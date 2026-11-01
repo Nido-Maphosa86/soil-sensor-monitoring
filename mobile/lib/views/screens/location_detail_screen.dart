@@ -1,6 +1,6 @@
 // SUMMARY: Screens M4 and M4b, Province detail. A dark header with the headline soil moisture, then three tabs:
 // Readings (the other parameters against their bands as a traffic light: in range, near limit, out of range),
-// Trends (open a trend for any parameter) and Sensors (battery, signal, state and last communication of each sensor).
+// Trends (open a trend for any parameter) and Sensors (state and last communication of each sensor).
 // MVVM: View. LocationDetailViewModel loads the province and remembers the open tab; this file only draws.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -238,8 +238,6 @@ class _SensorTile extends StatelessWidget {
         ]),
         const SizedBox(height: 12),
         Row(children: [
-          _cell('Battery', st == null ? '–' : '${st.batteryLevel}%'),
-          _cell('Signal', st?.signal ?? '–'),
           _cell('Last communication', st == null ? '–' : '${dayLabel(st.lastCommunication, now) == 'Today' ? '' : '${dayLabel(st.lastCommunication, now)} '}${hhmm(st.lastCommunication)}'),
         ]),
       ]),

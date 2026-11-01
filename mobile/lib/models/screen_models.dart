@@ -85,7 +85,7 @@ class SensorRow {
   final Sensor sensor;
   final SensorStatus? status; // empty when the gateway has not reported yet
 
-  /// Online, Offline, Battery low or Weak signal.
+  /// Online or Offline.
   final String stateLabel;
 
   /// One of: ok, warn, off (the screen maps this to a colour).

@@ -101,7 +101,7 @@ class _Body extends StatelessWidget {
         child: Row(children: [
           const IconTile(Icons.wifi_off_rounded, fg: Sg.offline, bg: Sg.tOff),
           const SizedBox(width: 13),
-          Expanded(child: Text('No reading has arrived from this sensor for 2 hours or more.', style: sgText(14, color: Sg.tx2, height: 1.5))),
+          Expanded(child: Text('No reading has arrived from this sensor for 1 minute or more.', style: sgText(14, color: Sg.tx2, height: 1.5))),
         ]),
       );
     }
