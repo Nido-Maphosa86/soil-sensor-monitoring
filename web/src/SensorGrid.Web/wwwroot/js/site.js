@@ -205,8 +205,11 @@
 
   /* ---------- Alerts: note dialog and view note ---------- */
   function initAlerts() {
-    $all('[data-note-action]').forEach(function (b) {
-      b.addEventListener('click', function () {
+    // One click handler on the page instead of one per button: the table refreshes itself every 2 s,
+    // and new rows bring new buttons, which must work too.
+    document.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-note-action]');   // Acknowledge or Resolve button in any row, old or new
+      if (b) {
         var action = b.getAttribute('data-note-action');
         $('#noteForm').action = '/Alerts/' + action;
         $('#noteId').value = b.getAttribute('data-id');
@@ -214,19 +217,19 @@
         $('#noteSubmit').textContent = action;
         $('#noteSub').textContent = 'Sensor ' + b.getAttribute('data-sensor') + '. Your name and the time are saved with the note.';
         $('#noteText').value = '';
-        $('#noteModal').classList.add('open');
+        $('#noteModal').classList.add('open');            // while a dialog is open the page does not refresh, so the note is never lost
         $('#noteText').focus();
-      });
-    });
-    $all('[data-view-note]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        fetch('/Alerts/Note?id=' + encodeURIComponent(b.getAttribute('data-view-note')), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (n) {
+        return;
+      }
+      var v = e.target.closest('[data-view-note]');       // View note button on a resolved row
+      if (v) {
+        fetch('/Alerts/Note?id=' + encodeURIComponent(v.getAttribute('data-view-note')), { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(function (n) {
           $('#vnTitle').textContent = 'Note for ' + n.sensor;
           $('#vnSub').textContent = n.status + ' by ' + n.owner + (n.when ? ' · ' + n.when : '');
           $('#vnText').textContent = n.note;
           $('#viewNoteModal').classList.add('open');
         });
-      });
+      }
     });
   }
 

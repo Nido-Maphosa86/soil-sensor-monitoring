@@ -25,7 +25,7 @@
   </form>
   <a class="btn ghost" asp-action="Export">Export</a>
 }
-<div class="grid g3">
+<div class="grid g3" data-live="alert-counts" data-live-every="2"> @* the counters refresh every 2 s *@
 @foreach (var (l, v, s, tone) in kpis)
 {
   <div class="card kpi wide">
@@ -40,7 +40,7 @@
     <a class="chip@(chip == Model.Chip ? " on" : "")" asp-action="Index" asp-route-chip="@chip" asp-route-q="@Model.Query" asp-route-site="@Model.Site">@chip</a>
   }
 </div>
-<div class="card">
+<div class="card" data-live="alert-table" data-live-every="2"> @* the alert list refreshes every 2 s; filters stay applied *@
   <div class="tablewrap">
   <table><thead><tr>@foreach (var h in heads){<th>@h.ToUpperInvariant()</th>}</tr></thead>
   <tbody>
