@@ -18,7 +18,7 @@ public sealed class CachingRealtimeDatabaseStore : IRealtimeDatabaseStore
 {
     private static readonly TimeSpan Long = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan Short = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan Live = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan Live = TimeSpan.FromSeconds(1);
 
     /// <summary>The first part of a path and how long its answers are remembered.</summary>
     private static readonly Dictionary<string, TimeSpan> Branches = new()
