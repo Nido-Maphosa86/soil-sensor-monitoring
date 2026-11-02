@@ -25,7 +25,7 @@ class TrendViewModel extends LoadingViewModel<TrendData> {
 
   TrendRange get range => _range;
 
-  /// Only the 15-minute chart follows new readings; the longer ones would barely change.
+  /// Only the 15-minute chart follows new readings; the longer ones would barely change...
   @override
   Set<LiveTopic> get liveTopics => _range == TrendRange.minutes15 ? const {LiveTopic.readings} : const {};
     @override
