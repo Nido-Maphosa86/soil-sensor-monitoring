@@ -171,6 +171,36 @@ class Avatar extends StatelessWidget {
       );
 }
 
+/// The bell on Home: a round button with the number of unread notifications in a red badge (none when all are read).
+class BellButton extends StatelessWidget {
+  const BellButton({super.key, required this.unread, this.onTap});
+
+  final int unread;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: unread == 0 ? 'Notifications' : 'Notifications, $unread unread',
+        child: Stack(clipBehavior: Clip.none, children: [
+          RoundIconButton(unread == 0 ? Icons.notifications_none_rounded : Icons.notifications_rounded, onTap: onTap),
+          if (unread > 0)
+            Positioned(
+              top: -3,
+              right: -4,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 19),
+                height: 19,
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: Sg.outOfRange, borderRadius: BorderRadius.circular(10), border: Border.all(color: Sg.canvas, width: 2)),
+                child: Text(unread > 99 ? '99+' : '$unread', style: sgText(10, weight: FontWeight.w700, color: Colors.white, height: 1)),
+              ),
+            ),
+        ]),
+      );
+}
+
 /// A section title with an optional action on the right ("See all").
 class SectionHeader extends StatelessWidget {
   const SectionHeader(this.title, {super.key, this.action, this.onAction});

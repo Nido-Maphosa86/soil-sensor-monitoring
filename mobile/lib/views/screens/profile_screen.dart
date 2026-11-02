@@ -1,5 +1,5 @@
 // SUMMARY: Screen M9, Profile (opened from the avatar on Home): account details, the assigned provinces, the two notification
-// switches (threshold breaches, sensor offline), and Sign out.
+// switches (threshold breaches, sensor offline: they decide what reaches the bell and the banner), and Sign out.
 // An Administrator who signs in on the phone gets the same Standard User functions as everyone else.
 // MVVM: View. ProfileViewModel saves the switches and signs out; this file only draws.
 import 'package:flutter/material.dart';
@@ -81,6 +81,11 @@ class ProfileScreen extends StatelessWidget {
               const Divider(height: 1, indent: 64, color: Sg.line2),
               _switch(Icons.wifi_off_rounded, Sg.tOff, Sg.offline, 'Sensor offline', user.notifyOffline, (v) => _toggle(context, vm, offline: v)),
             ]),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 4, 0),
+            child: Text('Shown on the bell on Home, and as a banner while the app is open. The Alerts tab always lists every alert.',
+                style: sgText(12, color: Sg.tx3, height: 1.4)),
           ),
           const SizedBox(height: 14),
           SgCard(

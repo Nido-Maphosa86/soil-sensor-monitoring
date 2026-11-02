@@ -52,8 +52,8 @@ A person who stays signed in is let straight in the next time the app opens, aft
 |---|---|---|
 | `lib/models` | Model | Entities, enums, the four rules and the ready-to-show screen models. No Flutter, no Firebase |
 | `lib/repositories` | Repository | The repository interfaces, `RepositorySet`, and the Firebase versions in `firebase/` |
-| `lib/viewmodels` | ViewModel | One `ChangeNotifier` per screen, plus `SessionViewModel` (who is signed in), `LiveSignals` (changes arriving from Firebase) and `ViewModelFactory` |
-| `lib/views` | View | The screens M1 to M9, the waiting screen, the shared widgets, the charts and the named routes |
+| `lib/viewmodels` | ViewModel | One `ChangeNotifier` per screen, plus `SessionViewModel` (who is signed in), `LiveSignals` (changes arriving from Firebase), `InboxViewModel` (the bell and the banner) and `ViewModelFactory` |
+| `lib/views` | View | The screens M1 to M10, the waiting screen, the shared widgets, the notification banner, the charts and the named routes |
 | `lib/core` | Shared | Theme colours, text formatting, the Firebase settings |
 | `lib/main.dart` | Wiring | Starts Firebase, `MultiProvider`, `onGenerateRoute` |
 
@@ -69,12 +69,29 @@ The MVVM rules this code keeps:
 
 The screens update by themselves; pulling a screen down also loads it again.
 
-- `LiveSignals` listens to `alerts/{loc}` of the person's provinces and to `readings/{sensor_id}/latest` of their sensors.
+- `LiveSignals` listens to `alerts/{loc}` of the person's provinces, to `readings/{sensor_id}/latest` of their sensors, to their own
+  `notifications/{uid}`, and to their `user_locations/{uid}`.
 - A new or changed alert reaches the badge, the Alerts list and an open alert at once (the alerts are created by the web server's alert checker, every 10 seconds).
 - Readings refresh the province screen at most every 10 seconds, Home and Sites every 30 seconds, and the 15-minute trend every 10 seconds.
 - A 20-second heartbeat also refreshes them, so a silent sensor turns **Offline** after 1 minute. When every sensor is offline, the province screen shows the last values received, in grey, with an Offline banner.
 
-Pages on top of the tabs are named routes in `lib/views/routes.dart`: `/profile`, `/location`, `/trend`, `/alert`.
+- A province given or taken away on the web console reaches the app within seconds: the lists switch to the new provinces, no sign-out needed.
+
+Pages on top of the tabs are named routes in `lib/views/routes.dart`: `/profile`, `/location`, `/trend`, `/alert`, `/notifications`.
+
+## In-app notifications
+
+The web server's alert checker writes a notification to `notifications/{uid}` for each new alert, for every field officer of that
+province who has that kind switched on in their profile (**Threshold breaches**, **Sensor offline**).
+
+- **The bell on Home** shows the number of unread notifications and opens **Notifications** (M10): newest first, grouped by day,
+  unread ones with a green dot. Tapping one opens the alert, which marks it read; **Mark all read** clears them all in one update.
+- **The banner**: when a new notification arrives while the app is open, a banner drops in at the top of whatever screen is showing,
+  with **View** and **Dismiss**. It goes away by itself after 6 seconds.
+- The badge on the **Alerts** tab still counts the open alerts, and the Alerts tab always lists every alert of the person's provinces,
+  whatever the switches say.
+- Nothing pops up while the app is closed or the phone is locked: that would need push notifications (Firebase Cloud Messaging),
+  which this app does not use.
 
 ## The four rules (in `lib/models/rules.dart`)
 
@@ -92,7 +109,7 @@ Pages on top of the tabs are named routes in `lib/views/routes.dart`: `/profile`
 | Trends | `readings/{sensor_id}/history` as a key range (the keys are push IDs, which start with their time). 15 minutes reads every row (about 150) and averages each 10 seconds; 24 hours, 7 days and 30 days read ONE row per 5 minutes, hour and 6 hours |
 | Reports | One row per hour per sensor over the last 24 hours (N, P, K and share in range). Report files are on the web console |
 | Alerts | `alerts/{loc}` and `alert_actions/{loc}`. Acknowledge and Resolve write the action and the new state in ONE update |
-| Notifications | `notifications/{uid}`, marking `is_read` and `read_at` |
+| Notifications | `notifications/{uid}` (read live), marking `is_read` and `read_at` (one at a time when an alert is opened, or all in one update) |
 | Profile | `users/{uid}/notify_breach`, `notify_offline` |
 
 The readings come from the third-party sensor gateway, which writes its own field names. The app maps them like this

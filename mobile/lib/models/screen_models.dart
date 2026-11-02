@@ -1,4 +1,4 @@
-// SUMMARY: The ready-to-show data each screen needs (home summary, location detail, trend, alerts overview, reports).
+// SUMMARY: The ready-to-show data each screen needs (home summary, location detail, trend, alerts overview, reports, notifications).
 // MVVM: Model. ViewModels build these from the repositories; Views only draw them.
 import 'entities.dart'; // Location, Sensor, AlertItem...
 import 'enums.dart'; // Parameter, BandStatus, TrendRange
@@ -239,4 +239,26 @@ class ReportsData {
   final List<NutrientGroup> nutrients;
   final List<InRangeRow> inRange;
   final int? allSites; // the in-range percent across all sites together (null when there were no readings)
+}
+
+/// One line of the notifications inbox: the notification, the alert it is about, and the province name.
+class NotificationItem {
+  const NotificationItem({required this.notification, required this.alert, required this.locationName});
+
+  final AppNotification notification;
+  final AlertItem alert;
+  final String locationName;
+
+  String get alertId => notification.alertId;
+  bool get isRead => notification.isRead;
+}
+
+/// Everything the Notifications screen shows: the newest notifications first.
+class NotificationsData {
+  const NotificationsData({required this.items, required this.nowUtc});
+
+  final List<NotificationItem> items;
+  final DateTime nowUtc;
+
+  int get unread => items.where((i) => !i.isRead).length;
 }

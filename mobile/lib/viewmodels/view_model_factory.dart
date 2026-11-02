@@ -7,6 +7,7 @@ import 'alert_detail_view_model.dart';
 import 'alerts_view_model.dart';
 import 'home_view_model.dart';
 import 'location_detail_view_model.dart';
+import 'notifications_view_model.dart';
 import 'profile_view_model.dart';
 import 'reports_view_model.dart';
 import 'session_view_model.dart';
@@ -31,4 +32,5 @@ class ViewModelFactory {
   AlertDetailViewModel alertDetail(String locationId, String alertId) => AlertDetailViewModel(_repositories, _session, locationId: locationId, alertId: alertId);
   ReportsViewModel reports() => ReportsViewModel(_repositories, _session);
   ProfileViewModel profile() => ProfileViewModel(_repositories, _session);
+  NotificationsViewModel notifications() => NotificationsViewModel(_repositories, _session);
 }

@@ -7,6 +7,7 @@ import '../models/entities.dart';
 import '../models/enums.dart';
 import 'screens/alert_detail_screen.dart';
 import 'screens/location_detail_screen.dart';
+import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/trend_screen.dart';
 
@@ -22,6 +23,7 @@ class AppRoutes {
   static const location = '/location'; // M4, argument: the location id (String)
   static const trend = '/trend'; // M5, argument: TrendArgs
   static const alert = '/alert'; // M7, argument: the AlertItem that was tapped
+  static const notifications = '/notifications'; // M10, no arguments
 
   /// Builds the page for a route name. Unknown names return null (Flutter then shows its own error).
   static Route<dynamic>? generate(RouteSettings settings) {
@@ -30,6 +32,7 @@ class AppRoutes {
       AppRoutes.location => LocationDetailScreen(locationId: settings.arguments as String),
       AppRoutes.trend => TrendScreen(args: settings.arguments as TrendArgs),
       AppRoutes.alert => AlertDetailScreen(alert: settings.arguments as AlertItem),
+      AppRoutes.notifications => const NotificationsScreen(),
       _ => null,
     };
     return page == null ? null : MaterialPageRoute(builder: (_) => page, settings: settings);

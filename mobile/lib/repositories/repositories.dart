@@ -38,6 +38,12 @@ abstract class AuthRepository {
   /// Always completes the same way, whether or not the email has an account.
   Future<void> sendPasswordReset(String email);
   Future<void> signOut();
+
+  /// The provinces assigned to the person now (user_locations/{uid}).
+  Future<List<String>> assignedLocations(String uid);
+
+  /// Fires when an administrator gives or takes away a province on the web console.
+  Stream<void> watchAssignments(String uid);
 }
 
 abstract class LocationRepository {
@@ -80,8 +86,16 @@ abstract class AlertRepository {
   /// Saves the action AND the new state together (one multi-path update in Firebase), and returns the updated alert.
   Future<AlertItem> act(AlertActionRequest request);
 
+  /// The person's notifications (notifications/{uid}), newest first. The web server's alert checker writes one per new alert,
+  /// for each person of that province who wants that kind (the switches on the profile).
   Future<List<AppNotification>> notifications(String uid);
   Future<void> markRead(String uid, String alertId, DateTime readAt);
+
+  /// Marks several notifications read in ONE update.
+  Future<void> markAllRead(String uid, List<String> alertIds, DateTime readAt);
+
+  /// Fires as soon as a notification is added or marked read.
+  Stream<void> watchNotifications(String uid);
 
   /// Fires as soon as anything changes in a province's alerts (a new alert, or one acknowledged or resolved by anyone).
   Stream<void> watchAlerts(String locationId);

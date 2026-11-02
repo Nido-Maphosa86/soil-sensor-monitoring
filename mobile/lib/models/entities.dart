@@ -29,15 +29,15 @@ class AppUser {
   final bool notifyBreach;
   final bool notifyOffline;
 
-  // a copy with some notification switches changed (used by the profile screen)
-  AppUser copyWith({bool? notifyBreach, bool? notifyOffline}) => AppUser(
+  // a copy with some notification switches or the provinces changed (used by the profile screen and the live province list)
+  AppUser copyWith({bool? notifyBreach, bool? notifyOffline, List<String>? locationIds}) => AppUser(
         uid: uid,
         name: name,
         email: email,
         role: role,
         status: status,
         createdAt: createdAt,
-        locationIds: locationIds,
+        locationIds: locationIds ?? this.locationIds,
         notifyBreach: notifyBreach ?? this.notifyBreach, // ?? keeps the old value when no new one is given
         notifyOffline: notifyOffline ?? this.notifyOffline,
       );

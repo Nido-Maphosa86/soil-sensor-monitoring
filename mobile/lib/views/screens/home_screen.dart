@@ -1,5 +1,6 @@
 // SUMMARY: Screen M2, Home: a greeting, the sensor network summary (14 of 15 reporting, one square per sensor), the newest open alert,
-// and a card for each of the person's provinces. Tapping the avatar opens the profile; tapping a province opens its detail.
+// and a card for each of the person's provinces. The bell shows the unread notifications and opens them (M10); tapping the avatar
+// opens the profile; tapping a province opens its detail.
 // MVVM: View. Everything shown comes from HomeViewModel; this file only draws it and opens other pages.
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +11,7 @@ import '../../models/entities.dart';
 import '../../models/enums.dart';
 import '../../models/screen_models.dart';
 import '../../viewmodels/home_view_model.dart';
+import '../../viewmodels/inbox_view_model.dart';
 import '../../viewmodels/view_model_factory.dart';
 import '../routes.dart';
 import '../widgets/alert_text.dart';
@@ -36,6 +38,9 @@ class HomeScreen extends StatelessWidget {
                     Text('${vm.greeting(sast(data.nowUtc).hour)}\n${vm.user.name}', style: sgText(24, weight: FontWeight.w700, spacing: -0.6, height: 1.2)),
                   ]),
                 ),
+                // the unread count comes from the app-wide InboxViewModel, so it changes the moment a notification arrives
+                BellButton(unread: context.watch<InboxViewModel>().unread, onTap: () => Navigator.of(context).pushNamed(AppRoutes.notifications)),
+                const SizedBox(width: 10),
                 Avatar(initials(vm.user.name), onTap: () => Navigator.of(context).pushNamed(AppRoutes.profile)),
               ]),
               const SizedBox(height: 16),

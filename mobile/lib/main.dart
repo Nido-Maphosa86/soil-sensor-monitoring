@@ -1,5 +1,6 @@
 // SUMMARY: Where the app starts. It connects to Firebase with the settings from lib/core/app_config.dart, creates the app-wide
-// ViewModels, shares them with every screen through Provider, and sets up the named routes.
+// ViewModels, shares them with every screen through Provider, sets up the named routes, and places the notification banner
+// above every page.
 // While a setting is missing (or Firebase cannot start) the app shows "Waiting for the Firebase connection" instead.
 // MVVM wiring:
 //   Model       lib/models        plain data and the four rules
@@ -15,12 +16,14 @@ import 'package:provider/provider.dart';
 import 'core/app_config.dart';
 import 'core/theme.dart';
 import 'repositories/repository_set.dart';
+import 'viewmodels/inbox_view_model.dart';
 import 'viewmodels/session_view_model.dart';
 import 'viewmodels/view_model_factory.dart';
 import 'views/routes.dart';
 import 'views/screens/main_shell.dart';
 import 'views/screens/sign_in_screen.dart';
 import 'views/screens/waiting_screen.dart';
+import 'views/widgets/notification_banner.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -57,9 +60,14 @@ class _SensorGridAppState extends State<SensorGridApp> {
   // Made once for the whole life of the app.
   late final SessionViewModel _session = SessionViewModel(widget.repositories);
   late final ViewModelFactory _factory = ViewModelFactory(widget.repositories, _session);
+  late final InboxViewModel _inbox = InboxViewModel(widget.repositories, _session);
+
+  // the banner sits above the pages, so it opens an alert through this key
+  final _navigator = GlobalKey<NavigatorState>();
 
   @override
   void dispose() {
+    _inbox.dispose();
     _session.dispose();
     super.dispose();
   }
@@ -68,14 +76,23 @@ class _SensorGridAppState extends State<SensorGridApp> {
   Widget build(BuildContext context) => MultiProvider(
         providers: [
           ChangeNotifierProvider<SessionViewModel>.value(value: _session),
+          ChangeNotifierProvider<InboxViewModel>.value(value: _inbox),
           Provider<ViewModelFactory>.value(value: _factory),
         ],
         child: MaterialApp(
           title: 'SensorGrid',
           debugShowCheckedModeBanner: false,
           theme: buildTheme(),
+          navigatorKey: _navigator,
           onGenerateRoute: AppRoutes.generate,
-          builder: phoneColumn,
+          // every page, with the notification banner on top (it only shows while a new alert has just arrived)
+          builder: (context, child) => phoneColumn(
+            context,
+            Stack(children: [
+              ?child,
+              Positioned(left: 0, right: 0, top: 0, child: NotificationBanner(navigator: _navigator)),
+            ]),
+          ),
           // Nobody signed in: the sign-in screen (which first checks for a saved sign-in). Someone signed in: the four tabs.
           home: Consumer<SessionViewModel>(builder: (context, session, _) => session.user == null ? const SignInScreen() : const MainShell()),
         ),

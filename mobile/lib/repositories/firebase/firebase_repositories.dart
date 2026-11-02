@@ -173,6 +173,15 @@ class FirebaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() => _b.auth.signOut();
+
+  @override
+  Future<List<String>> assignedLocations(String uid) async {
+    final assigned = _map(await _b.read('user_locations/$uid'));
+    return [for (final e in assigned.entries) if (e.value == true) e.key]..sort();
+  }
+
+  @override
+  Stream<void> watchAssignments(String uid) => _b.watch('user_locations/$uid');
 }
 
 // ------------------------------------------------------------------ locations, sensors, thresholds
@@ -372,6 +381,17 @@ class FirebaseAlertRepository implements AlertRepository {
   @override
   Future<void> markRead(String uid, String alertId, DateTime readAt) =>
       _b.update({'notifications/$uid/$alertId/is_read': true, 'notifications/$uid/$alertId/read_at': _ms(readAt)});
+
+  @override
+  Future<void> markAllRead(String uid, List<String> alertIds, DateTime readAt) async {
+    if (alertIds.isEmpty) return;
+    await _b.update({
+      for (final id in alertIds) ...{'notifications/$uid/$id/is_read': true, 'notifications/$uid/$id/read_at': _ms(readAt)},
+    });
+  }
+
+  @override
+  Stream<void> watchNotifications(String uid) => _b.watch('notifications/$uid');
 
   @override
   Stream<void> watchAlerts(String locationId) => _b.watch('alerts/$locationId');
