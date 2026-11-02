@@ -103,7 +103,16 @@ class SensorRow {
 
 // Everything the province (site) detail screen shows.
 class LocationDetail {
-  const LocationDetail({required this.card, required this.lastUpdated, required this.live, required this.tiles, required this.sensors});
+  const LocationDetail({
+    required this.card,
+    required this.lastUpdated,
+    required this.live,
+    required this.tiles,
+    required this.sensors,
+    this.choices = const [],
+    this.selected,
+    this.source = '',
+  });
 
   final LocationCardData card;
 
@@ -114,6 +123,15 @@ class LocationDetail {
   final bool live;
   final List<ParameterTile> tiles;
   final List<SensorRow> sensors;
+
+  /// The sensors offered by the switch after "Average"; empty when the province has fewer than two active sensors.
+  final List<String> choices;
+
+  /// The sensor whose readings are shown, or null for the average.
+  final String? selected;
+
+  /// What the values are: "Average of 2 sensors" or "FS-01 · Online · last reading 14:32".
+  final String source;
 
   Location get location => card.location; // shortcut to the site itself
 }

@@ -1,9 +1,12 @@
 // SUMMARY: The ViewModel of M4 / M4b, Province detail: the headline soil moisture, the other parameters against their bands
 // (in range, near limit, out of range), and each sensor's state and last communication.
+// The values are the average of the province's reporting sensors (the default) or one chosen sensor's newest reading:
+// a province with two or more active sensors offers the switch "Average | FS-01 | FS-02".
 // While a sensor reports, the values are live and refresh by themselves (at most every 10 seconds). When every sensor is offline,
 // the values are the last ones received, marked as such, so the screen is never blank.
 // It also remembers which of the three tabs (Readings, Trends, Sensors) is open.
 // MVVM: ViewModel. It refuses a province that is not assigned to the person (rule 4).
+import '../core/format.dart';
 import '../models/enums.dart';
 import '../models/rules.dart';
 import '../models/screen_models.dart';
@@ -21,6 +24,17 @@ class LocationDetailViewModel extends LoadingViewModel<LocationDetail> {
   final String locationId;
 
   int _tab = 0;
+  String? _sensorId; // null: the average of the reporting sensors
+
+  /// The sensor whose readings are shown, or null for the average.
+  String? get sensorId => _sensorId;
+
+  /// Shows one sensor's readings (or the average with null). The new values load quietly, without hiding the screen.
+  void selectSensor(String? value) {
+    if (value == _sensorId) return;
+    _sensorId = value;
+    load(quiet: true);
+  }
 
   /// 0 Readings, 1 Trends, 2 Sensors.
   int get tab => _tab;
@@ -47,17 +61,40 @@ class LocationDetailViewModel extends LoadingViewModel<LocationDetail> {
     final sensors = await locationRepo.sensors(locationId);
     final statuses = {for (final s in await locationRepo.sensorStatuses(locationId)) s.sensorId: s};
 
-    // Live: the current averages of the reporting sensors. Every sensor offline: the average of the last values they sent.
-    final live = card.sensorsReporting > 0;
-    var values = card.averages;
-    if (!live) {
-      final latest = await _repositories.readings.latestPerSensor(locationId);
-      final counted = sensors.where((s) => s.isActive && s.includeInAverage && latest[s.id] != null).map((s) => latest[s.id]!).toList();
-      values = {
-        for (final p in Parameter.values)
-          if (counted.any((r) => r.values[p] != null))
-            p: [for (final r in counted) if (r.values[p] != null) r.values[p]!].reduce((a, b) => a + b) / counted.where((r) => r.values[p] != null).length
-      };
+    final active = sensors.where((s) => s.isActive).toList();
+    bool silent(String id) => statuses[id] == null || SensorRules.isOffline(statuses[id]!.lastCommunication, now);
+    // a sensor that was retired or removed meanwhile falls back to the average
+    final chosen = active.where((s) => s.id == _sensorId).firstOrNull;
+
+    bool live;
+    Map<Parameter, double> values;
+    String source;
+    if (chosen != null) {
+      // one sensor: its newest reading, live while it reports, otherwise its last values in grey
+      final latest = (await _repositories.readings.latestPerSensor(locationId))[chosen.id];
+      live = !silent(chosen.id);
+      values = latest?.values ?? const {};
+      final at = statuses[chosen.id]?.lastCommunication;
+      source = '${chosen.id} · ${live ? 'Online' : 'Offline'} · ${at == null ? 'no readings yet' : 'last reading ${hhmm(at)}'}';
+    } else {
+      // Live: the current averages of the reporting sensors. Every sensor offline: the average of the last values they sent.
+      live = card.sensorsReporting > 0;
+      values = card.averages;
+      if (!live) {
+        final latest = await _repositories.readings.latestPerSensor(locationId);
+        final counted = sensors.where((s) => s.isActive && s.includeInAverage && latest[s.id] != null).map((s) => latest[s.id]!).toList();
+        values = {
+          for (final p in Parameter.values)
+            if (counted.any((r) => r.values[p] != null))
+              p: [for (final r in counted) if (r.values[p] != null) r.values[p]!].reduce((a, b) => a + b) / counted.where((r) => r.values[p] != null).length
+        };
+      }
+      final counted = active.where((s) => s.includeInAverage).toList();
+      final off = [for (final s in counted) if (silent(s.id)) s.id];
+      final n = counted.length - off.length;
+      source = live
+          ? 'Average of $n ${n == 1 ? 'sensor' : 'sensors'}${off.isEmpty ? '' : ' (${off.join(', ')} offline)'}'
+          : 'Average of the last values received';
     }
 
     // The traffic light of each parameter: its value against its band.
@@ -88,6 +125,17 @@ class LocationDetailViewModel extends LoadingViewModel<LocationDetail> {
       }
       rows.add(SensorRow(sensor: s, status: st, stateLabel: label, stateColourKey: key));
     }
-    return LocationDetail(card: card, lastUpdated: lastUpdated, live: live, tiles: tiles, sensors: rows);
+    // with a chosen sensor, "updated" and the offline banner refer to that sensor only
+    if (chosen != null) lastUpdated = statuses[chosen.id]?.lastCommunication;
+    return LocationDetail(
+      card: card,
+      lastUpdated: lastUpdated,
+      live: live,
+      tiles: tiles,
+      sensors: rows,
+      choices: active.length < 2 ? const [] : [for (final s in active) s.id],
+      selected: chosen?.id,
+      source: source,
+    );
   }
 }

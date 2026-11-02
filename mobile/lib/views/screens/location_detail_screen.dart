@@ -1,6 +1,8 @@
 // SUMMARY: Screens M4 and M4b, Province detail. A dark header with the headline soil moisture, then three tabs:
 // Readings (the other parameters against their bands as a traffic light: in range, near limit, out of range),
 // Trends (open a trend for any parameter) and Sensors (state and last communication of each sensor).
+// A province with two or more active sensors gets the switch "Average | FS-01 | FS-02" under the header: the headline, the Readings
+// and the Trends values then show the average (the default) or that one sensor.
 // The values refresh by themselves while a sensor reports. When every sensor is offline, the last values received are shown in grey
 // with an "Offline" banner, so the screen is never blank. Pulling the page down loads it again.
 // MVVM: View. LocationDetailViewModel loads the province and remembers the open tab; this file only draws.
@@ -32,6 +34,7 @@ class LocationDetailScreen extends StatelessWidget {
                 onRefresh: vm.reload,
                 child: ListView(physics: const AlwaysScrollableScrollPhysics(), padding: EdgeInsets.zero, children: [
                   _Header(detail: d, tab: vm.tab, onTab: vm.selectTab, now: vm.nowUtc),
+                  if (d.choices.isNotEmpty && vm.tab != 2) _SensorSwitch(detail: d, onSelect: vm.selectSensor),
                   if (!d.live && vm.tab != 2) _OfflineBanner(detail: d, now: vm.nowUtc),
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
@@ -48,8 +51,9 @@ class LocationDetailScreen extends StatelessWidget {
         ),
       );
 
-  static void _openTrend(BuildContext context, Parameter p, String locationId) =>
-      Navigator.of(context).pushNamed(AppRoutes.trend, arguments: TrendArgs(locationId, p));
+  /// Opens the trend of a value, on the sensor chosen with the switch (or the first sensor when the average is shown).
+  static void _openTrend(BuildContext context, Parameter p, String locationId, [String? sensorId]) =>
+      Navigator.of(context).pushNamed(AppRoutes.trend, arguments: TrendArgs(locationId, p, sensorId));
 
   /// The six other parameters as tiles (soil moisture is the headline in the header).
   static Widget _readings(BuildContext context, LocationDetail d) {
@@ -61,7 +65,7 @@ class LocationDetailScreen extends StatelessWidget {
         for (final t in tiles)
           SizedBox(
             width: (MediaQuery.of(context).size.width.clamp(0, 480) - 52) / 2,
-            child: _ParameterTile(tile: t, onTap: () => _openTrend(context, t.parameter, d.location.id)),
+            child: _ParameterTile(tile: t, onTap: () => _openTrend(context, t.parameter, d.location.id, d.selected)),
           ),
       ],
     );
@@ -72,7 +76,7 @@ class LocationDetailScreen extends StatelessWidget {
           SgCard(
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            onTap: () => _openTrend(context, t.parameter, d.location.id),
+            onTap: () => _openTrend(context, t.parameter, d.location.id, d.selected),
             child: Row(children: [
               IconTile(parameterStyle(t.parameter).icon, fg: parameterStyle(t.parameter).colour, bg: parameterStyle(t.parameter).soft, size: 40, iconSize: 19, radius: 12),
               const SizedBox(width: 12),
@@ -98,6 +102,32 @@ class LocationDetailScreen extends StatelessWidget {
 
 String _num(double v, Parameter p) => v.toStringAsFixed(p.decimals);
 
+/// The switch under the header: "Average" (the default) or one sensor, and a line saying what the values are.
+class _SensorSwitch extends StatelessWidget {
+  const _SensorSwitch({required this.detail, required this.onSelect});
+  final LocationDetail detail;
+  final ValueChanged<String?> onSelect;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              SgChip('Average', selected: detail.selected == null, onTap: () => onSelect(null)),
+              for (final id in detail.choices) ...[
+                const SizedBox(width: 8),
+                SgChip(id, selected: detail.selected == id, onTap: () => onSelect(id)),
+              ],
+            ]),
+          ),
+          const SizedBox(height: 8),
+          Text(detail.source, style: sgText(12, color: Sg.tx3)),
+        ]),
+      );
+}
+
 /// Shown under the header when every sensor is offline: the values below are the last ones received.
 class _OfflineBanner extends StatelessWidget {
   const _OfflineBanner({required this.detail, required this.now});
@@ -114,9 +144,13 @@ class _OfflineBanner extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(
-              detail.lastUpdated == null
-                  ? 'No sensor in this province has reported yet.'
-                  : 'No sensor has reported for 1 minute or more (last reading ${ago(detail.lastUpdated!, now)}). These are the last values received.',
+              detail.selected != null
+                  ? detail.lastUpdated == null
+                      ? '${detail.selected} has not reported yet.'
+                      : '${detail.selected} has not reported for 1 minute or more (last reading ${ago(detail.lastUpdated!, now)}). These are its last values.'
+                  : detail.lastUpdated == null
+                      ? 'No sensor in this province has reported yet.'
+                      : 'No sensor has reported for 1 minute or more (last reading ${ago(detail.lastUpdated!, now)}). These are the last values received.',
               style: sgText(13, color: Sg.tx2, height: 1.45),
             ),
           ),
@@ -179,11 +213,11 @@ class _Header extends StatelessWidget {
                 const SizedBox(height: 14),
                 Text(loc.name, style: sgText(24, weight: FontWeight.w700, color: Colors.white, spacing: -0.6)),
                 const SizedBox(height: 3),
-                Text('${loc.coordinates} · ${detail.card.sensorsTotal} sensors · ${loc.crop.toLowerCase()}', style: sgText(13, color: const Color(0xFF9FB5AC))),
+                Text('${loc.coordinates} · ${detail.card.sensorsTotal} ${detail.card.sensorsTotal == 1 ? 'sensor' : 'sensors'} · ${loc.crop.toLowerCase()}', style: sgText(13, color: const Color(0xFF9FB5AC))),
                 if (moisture != null) ...[
                   const SizedBox(height: 18),
                   GestureDetector(
-                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.trend, arguments: TrendArgs(loc.id, Parameter.soilMoisture)),
+                    onTap: () => Navigator.of(context).pushNamed(AppRoutes.trend, arguments: TrendArgs(loc.id, Parameter.soilMoisture, detail.selected)),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
                       Expanded(
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

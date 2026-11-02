@@ -222,50 +222,92 @@ public sealed class SiteService : ISiteService
         return new SitesPageDto(subtitle, caption, cards, averages, await BuildFeedAsync(sites, now));
     }
 
-    public async Task<SiteDetailDto> GetDetailAsync(UserContext ctx, string siteId)
+    /// <summary>
+    /// W4 Site detail. The gauges show either the average of the province's reporting sensors (sensorId null, the default) or the newest
+    /// reading of one chosen sensor. When nothing reports, they show the last values received, marked as such, never zeros.
+    /// </summary>
+    public async Task<SiteDetailDto> GetDetailAsync(UserContext ctx, string siteId, string? sensorId = null)
     {
         var site = await _scope.RequireSiteAsync(ctx, siteId);
         var now = _clock.UtcNow;
         var sensors = (await _scope.VisibleSensorsAsync(ctx)).Where(s => s.SiteId == siteId).ToList(); // the table lists retired sensors too
         var active = sensors.Where(s => s.IsActive).ToList();                                        // the figures use only active ones
-        var current = await _metrics.CurrentReadingsAsync(active);
         var bands = await _analytics.BandsForAsync(siteId);
         var statuses = await _lookup.StatusesAsync(sensors);
+        bool Silent(Sensor s) => OfflineRule.IsOffline(statuses[s.SensorId]?.LastCommunication, now);
+
+        // an unknown, retired or other province's sensor falls back to the average
+        var chosen = string.IsNullOrWhiteSpace(sensorId) ? null : active.FirstOrDefault(s => s.SensorId == sensorId);
+        List<Reading> current;
+        bool lastKnown;      // true: the values are the last ones received, not live
+        string source;       // the line under the switch: what the gauges show
+        if (chosen is not null)
+        {
+            var reading = (await _lookup.LatestReadingsAsync(new[] { chosen }))[chosen.SensorId];
+            current = reading is null ? new List<Reading>() : new List<Reading> { reading };
+            lastKnown = Silent(chosen);
+            var at = statuses[chosen.SensorId]?.LastCommunication;
+            source = $"{chosen.SensorId} · {(lastKnown ? "Offline" : "Online")} · " + (at is null ? "no readings yet" : $"last reading {Display.Time(at.Value)}");
+        }
+        else
+        {
+            var counted = active.Where(s => s.IncludeInAverage).ToList();
+            current = await _metrics.CurrentReadingsAsync(active); // reporting sensors that count towards the average
+            lastKnown = false;
+            if (current.Count == 0)
+            {
+                // nobody reports: the average of the last values received, so the gauges never drop to zero
+                current = (await _lookup.LatestReadingsAsync(counted)).Values.Where(r => r is not null).Select(r => r!).ToList();
+                lastKnown = current.Count > 0;
+            }
+            var silent = counted.Where(Silent).Select(s => s.SensorId).ToList();
+            var reporting = counted.Count - silent.Count;
+            var newestAt = current.Count == 0 ? (DateTime?)null : current.Max(r => r.Timestamp);
+            source = current.Count == 0 ? "No readings yet"
+                : lastKnown ? $"No sensor reporting · last values from {Display.Time(newestAt!.Value)}"
+                : $"Average of {reporting} {(reporting == 1 ? "sensor" : "sensors")}" + (silent.Count > 0 ? $" ({string.Join(", ", silent)} offline)" : "") +
+                  $" · updated {Display.Time(newestAt!.Value)}";
+        }
 
         var cards = new List<ParamCardDto>();
         var outside = 0;
         foreach (var info in ParameterCatalog.Readings)
         {
-            var value = SiteMetrics.Mean(current, info.Parameter);
             if (!bands.TryGetValue(info.Parameter, out var band)) continue;
+            var target = $"Target {Display.Value(info.Parameter, band.MinValue)} – {Display.Value(info.Parameter, band.MaxValue)}";
+            if (current.Count == 0)
+            {
+                cards.Add(new ParamCardDto(info.Label, "–", info.Unit, "No reading", Tone.Off, info.Colour, 2, target));
+                continue;
+            }
+            var value = SiteMetrics.Mean(current, info.Parameter);
             var breach = BreachRule.IsBreach(value, band);
             if (breach) outside++;
-            var label = !breach ? "Optimal" : value > band.MaxValue ? "High" : "Low";
+            var label = lastKnown ? "Last known" : !breach ? "Optimal" : value > band.MaxValue ? "High" : "Low";
+            var tone = lastKnown ? Tone.Off : breach ? Tone.Bad : Tone.Ok;
             // the marker sits on a gauge where the target band covers 18% to 76% of the ring
             var position = (int)Math.Round(Math.Clamp(18 + 58 * (value - band.MinValue) / (band.MaxValue - band.MinValue), 2, 96));
-            var target = $"Target {Display.Value(info.Parameter, band.MinValue)} – {Display.Value(info.Parameter, band.MaxValue)}";
-            cards.Add(new ParamCardDto(info.Label, Display.Value(info.Parameter, value), info.Unit, label, breach ? Tone.Bad : Tone.Ok, info.Colour, position, target));
+            cards.Add(new ParamCardDto(info.Label, Display.Value(info.Parameter, value), info.Unit, label, tone, info.Colour, position, target));
         }
 
-        var newest = active.Select(s => statuses[s.SensorId]).Where(s => s is not null).Select(s => s!.LastCommunication).DefaultIfEmpty().Max();
-        var updated = newest == default ? "no readings yet" : Ago(now - newest);
-        var offline = active.Count(s => OfflineRule.IsOffline(statuses[s.SensorId]?.LastCommunication, now));
+        // the switch is only offered when there is something to choose between
+        var choices = active.Count < 2 ? new List<SensorChoiceDto>()
+            : new[] { new SensorChoiceDto(null, "Average", chosen is null) }.Concat(active.Select(s => new SensorChoiceDto(s.SensorId, s.SensorId, chosen == s))).ToList();
+
+        var offline = active.Count(Silent);
         var retired = sensors.Count - active.Count;
-        return new SiteDetailDto(site.SiteId, site.Name, $"{Coordinates(site)} · {site.Crop.ToLowerInvariant()} · {active.Count} sensors", cards,
-            outside == 0 ? $"All {cards.Count} parameters inside their target bands" : $"{outside} of {cards.Count} parameters outside their target bands",
-            outside == 0 ? Tone.Ok : Tone.Bad, "updated " + updated,
+        var summary = current.Count == 0 ? "No readings yet"
+            : lastKnown ? "Showing the last values received"
+            : outside == 0 ? $"All {cards.Count} parameters inside their target bands" : $"{outside} of {cards.Count} parameters outside their target bands";
+        return new SiteDetailDto(site.SiteId, site.Name, $"{Coordinates(site)} · {site.Crop.ToLowerInvariant()} · {active.Count} {(active.Count == 1 ? "sensor" : "sensors")}", cards,
+            summary, current.Count == 0 || lastKnown ? Tone.Off : outside == 0 ? Tone.Ok : Tone.Bad, source,
             sensors.Select(s => SensorRowDto.From(s, site.Name, statuses[s.SensorId], now)).ToList(),
-            $"{active.Count} units, " + (offline == 0 ? "all reporting" : $"{offline} offline") + (retired > 0 ? $", {retired} retired" : ""));
+            $"{active.Count} units, " + (offline == 0 ? "all reporting" : $"{offline} offline") + (retired > 0 ? $", {retired} retired" : ""),
+            choices, chosen?.SensorId);
     }
 
     private static string Coordinates(Site s) =>
         $"{s.Latitude.ToString("F4", Display.Culture)}, {s.Longitude.ToString("F4", Display.Culture)}";
-
-    private static string Ago(TimeSpan span) =>
-        span.TotalMinutes < 1 ? "just now" :
-        span.TotalMinutes < 60 ? $"{(int)span.TotalMinutes} {((int)span.TotalMinutes == 1 ? "minute" : "minutes")} ago" :
-        span.TotalHours < 24 ? $"{(int)span.TotalHours} {((int)span.TotalHours == 1 ? "hour" : "hours")} ago" :
-        $"{(int)span.TotalDays} days ago";
 
     /// <summary>The five newest events (alerts raised or resolved, threshold edits) in the person's provinces.</summary>
     private async Task<List<FeedItemDto>> BuildFeedAsync(IReadOnlyList<Site> sites, DateTime now)

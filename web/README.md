@@ -30,7 +30,7 @@ The console holds no sample data. Everything shown comes from the live Firebase 
 | **Sign in / Forgot password** | Email and password sign-in through Firebase Authentication. A password reset link is sent by email. The page gives the same answer whether or not the email exists. |
 | **Dashboard** | The headline figures (sensors online, open alerts, values in range), and a trend chart per province: 15 minutes (live, a point every 10 seconds), 24 hours, 7 days or 30 days. The range switches without reloading the page. |
 | **Sites** | Every site with its sensors, status and latest values. Administrators can **add a site**. |
-| **Site detail** | One site: a gauge per parameter, the threshold band, and its sensors. |
+| **Site detail** | One site: a live gauge per parameter (refreshed every 10 s) with its threshold band, and its sensors. With two or more sensors, a switch **Average | FS-01 | FS-02** chooses whether the gauges show the average of the reporting sensors (the default) or one sensor; a line says which ("Average of 2 sensors" or "FS-01 · Online · last reading 14:32"). When nothing reports, the gauges show the last values received in grey. |
 | **Edit site** (administrator) | Change the name, crop, coordinates, planting date and description (the code cannot change). **Delete** a site once it has no sensors: its thresholds and alerts are removed and it is taken off every user, after typing its code to confirm. |
 | **Sensors** | Every sensor: Online, Offline or Retired, and the time of its last reading. |
 | **Register sensor** (administrator) | Adds a sensor to a site. It proposes the next free code (for example FS-02) and Modbus slave ID. |

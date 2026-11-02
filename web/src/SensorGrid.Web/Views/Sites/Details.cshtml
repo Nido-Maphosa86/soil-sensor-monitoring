@@ -19,10 +19,21 @@
   <a asp-controller="Sensors" asp-action="Index" asp-route-site="@Model.SiteId">Sensors</a>
   @if (shell.IsAdmin){<a asp-controller="Thresholds" asp-action="Index" asp-route-site="@Model.SiteId">Thresholds</a>}
 </div>
-@* data-live: the summary, the gauges and the sensor list are fetched again every 10 seconds and swapped in (see site.js). *@
-<div class="row" style="gap:10px;margin-top:-8px" data-live="summary" data-live-every="10">
+@* The switch: Average (the default) or one sensor. Only shown when the site has two or more active sensors. *@
+@if (Model.Choices.Count > 0)
+{
+  <div class="chips" style="margin-top:-8px" aria-label="Readings from">
+    @foreach (var c in Model.Choices)
+    {
+      <a class="chip@(c.Selected ? " on" : "")" asp-action="Details" asp-route-id="@Model.SiteId" asp-route-sensor="@c.SensorId">@c.Label</a>
+    }
+  </div>
+}
+@* data-live: the summary, the gauges and the sensor list are fetched again every 10 seconds and swapped in (see site.js).
+   The address keeps ?sensor=..., so a chosen sensor stays chosen. *@
+<div class="row" style="gap:10px;margin-top:-8px;flex-wrap:wrap" data-live="summary" data-live-every="10">
   <span class="dotpill" style="color:@Ui.Colour(Model.SummaryTone)"><s style="background:@Ui.Colour(Model.SummaryTone)"></s>@Model.Summary</span>
-  <span class="cap">· @Model.Updated</span></div>
+  <span class="cap">· @Model.Source</span></div>
 
 <div class="grid g4" data-live="gauges" data-live-every="10">
 @foreach (var p in Model.Parameters)

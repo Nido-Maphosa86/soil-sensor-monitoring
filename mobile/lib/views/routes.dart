@@ -11,11 +11,12 @@ import 'screens/notifications_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/trend_screen.dart';
 
-/// What the trend page needs: the province and the parameter.
+/// What the trend page needs: the province, the parameter, and the sensor to start on (null: the first sensor of the province).
 class TrendArgs {
-  const TrendArgs(this.locationId, this.parameter);
+  const TrendArgs(this.locationId, this.parameter, [this.sensorId]);
   final String locationId;
   final Parameter parameter;
+  final String? sensorId;
 }
 
 class AppRoutes {

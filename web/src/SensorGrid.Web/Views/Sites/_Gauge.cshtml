@@ -7,7 +7,8 @@
     const double r = 54, cx = 70, cy = 70;
     var circle = 2 * Math.PI * r;                       // the whole circle
     var sweep = circle * 0.75;                          // the ring is three quarters of a circle
-    var arc = Model.Tone == Tone.Bad ? Ui.Colour(Tone.Bad) : Model.Colour;
+    // red outside the band, grey for a last-known value (no live reading), otherwise the parameter's own colour
+    var arc = Model.Tone == Tone.Bad ? Ui.Colour(Tone.Bad) : Model.Tone == Tone.Off ? Ui.Colour(Tone.Off) : Model.Colour;
     var angle = (135 + 270 * Model.Position / 100.0) * Math.PI / 180;   // where the dot sits; the ring starts at 135 degrees (bottom left)
     string N(double v) => v.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 }

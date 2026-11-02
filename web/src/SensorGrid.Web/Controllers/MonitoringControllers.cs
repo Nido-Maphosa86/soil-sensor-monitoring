@@ -53,7 +53,8 @@ public class SitesController : AppController
 
     public async Task<IActionResult> Index() => View(await _sites.GetSitesAsync(Me));
 
-    public async Task<IActionResult> Details(string id) => View(await _sites.GetDetailAsync(Me, id));
+    /// <summary>W4. sensor (optional) shows one sensor's live readings instead of the average.</summary>
+    public async Task<IActionResult> Details(string id, string? sensor) => View(await _sites.GetDetailAsync(Me, id, sensor));
 
     /// <summary>Add site (administrators only): the dialog on W3.</summary>
     [HttpPost, Authorize(Policy = "AdminOnly")]

@@ -40,7 +40,8 @@ public interface IDashboardService
 public interface ISiteService
 {
     Task<SitesPageDto> GetSitesAsync(UserContext ctx);
-    Task<SiteDetailDto> GetDetailAsync(UserContext ctx, string siteId);
+    /// <summary>One site: the gauges show the average of its reporting sensors, or one sensor when sensorId is given.</summary>
+    Task<SiteDetailDto> GetDetailAsync(UserContext ctx, string siteId, string? sensorId = null);
 
     /// <summary>Adds a site (administrators only) and gives it the starting threshold bands.</summary>
     Task<SiteSaveResult> AddAsync(UserContext ctx, SiteForm form);

@@ -14,14 +14,14 @@ import 'live_signals.dart';
 import 'location_insights.dart';
 
 class TrendViewModel extends LoadingViewModel<TrendData> {
-  TrendViewModel(this._repositories, super.session, {required this.locationId, required this.parameter});
+  TrendViewModel(this._repositories, super.session, {required this.locationId, required this.parameter, String? sensorId}) : _sensorId = sensorId;
 
   final RepositorySet _repositories;
   final String locationId;
   final Parameter parameter;
 
   TrendRange _range = TrendRange.minutes15;
-  String? _sensorId; // null means "the first sensor of the province"
+  String? _sensorId; // null means "the first sensor of the province"; set when the province screen had a sensor chosen
 
   TrendRange get range => _range;
 
@@ -52,7 +52,8 @@ class TrendViewModel extends LoadingViewModel<TrendData> {
     final loc = (await locationRepo.locations([locationId])).first;
     final sensors = (await locationRepo.sensors(locationId)).where((s) => s.isActive).toList();
     if (sensors.isEmpty) throw const RuleViolation('This province has no active sensors yet.');
-    final chosen = _sensorId ?? sensors.first.id;
+    // the chosen sensor, unless it was retired meanwhile: then the first active one
+    final chosen = sensors.any((s) => s.id == _sensorId) ? _sensorId! : sensors.first.id;
     final band = (await locationRepo.thresholds(locationId)).where((t) => t.parameter == parameter).cast<Threshold?>().firstWhere((_) => true, orElse: () => null);
 
     // the newest value and when it arrived, for "Now" (or "Last known" when the sensor is silent)

@@ -27,7 +27,8 @@ class ViewModelFactory {
   HomeViewModel home() => HomeViewModel(_repositories, _session);
   SitesViewModel sites() => SitesViewModel(_repositories, _session);
   LocationDetailViewModel locationDetail(String locationId) => LocationDetailViewModel(_repositories, _session, locationId);
-  TrendViewModel trend(String locationId, Parameter parameter) => TrendViewModel(_repositories, _session, locationId: locationId, parameter: parameter);
+  TrendViewModel trend(String locationId, Parameter parameter, [String? sensorId]) =>
+      TrendViewModel(_repositories, _session, locationId: locationId, parameter: parameter, sensorId: sensorId);
   AlertsViewModel alerts() => AlertsViewModel(_repositories, _session);
   AlertDetailViewModel alertDetail(String locationId, String alertId) => AlertDetailViewModel(_repositories, _session, locationId: locationId, alertId: alertId);
   ReportsViewModel reports() => ReportsViewModel(_repositories, _session);

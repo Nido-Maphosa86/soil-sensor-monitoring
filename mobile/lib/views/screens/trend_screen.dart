@@ -24,7 +24,7 @@ class TrendScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider(
-        create: (c) => c.read<ViewModelFactory>().trend(args.locationId, args.parameter)..load(),
+        create: (c) => c.read<ViewModelFactory>().trend(args.locationId, args.parameter, args.sensorId)..load(),
         child: Consumer<TrendViewModel>(
           builder: (context, vm, _) => Scaffold(
             body: SafeArea(

@@ -24,8 +24,15 @@ public sealed record FeedItemDto(string When, string Province, string Text, Tone
 public sealed record SitesPageDto(string Subtitle, string AverageCaption, IReadOnlyList<SiteCardDto> Cards, IReadOnlyList<AverageRowDto> Averages, IReadOnlyList<FeedItemDto> Feed);
 /// <summary>One live reading on the Site detail page. Position (0 to 100) places the value on the gauge, where the target band covers 18 to 76.</summary>
 public sealed record ParamCardDto(string Label, string Value, string Unit, string StatusLabel, Tone Tone, string Colour, int Position, string Target);
+/// <summary>
+/// W4 Site detail. Source says what the gauges show ("Average of 2 sensors · updated 14:32" or "GP-01 · Online · last reading 14:32").
+/// Choices is the Average / sensor switch, empty when the site has fewer than two active sensors; Selected is the chosen sensor (null = average).
+/// </summary>
 public sealed record SiteDetailDto(string SiteId, string Name, string Subtitle, IReadOnlyList<ParamCardDto> Parameters, string Summary, Tone SummaryTone,
-    string Updated, IReadOnlyList<SensorRowDto> Sensors, string SensorsCaption);
+    string Source, IReadOnlyList<SensorRowDto> Sensors, string SensorsCaption, IReadOnlyList<SensorChoiceDto> Choices, string? Selected);
+
+/// <summary>One button of the Average / sensor switch on W4. SensorId null is the average.</summary>
+public sealed record SensorChoiceDto(string? SensorId, string Label, bool Selected);
 
 /// <summary>Maps a sensor to the row shown in the sensor tables.</summary>
 public sealed record SensorRowDto(string SensorId, string Province, string Installed, string LastReading, string StateLabel, Tone Tone)
