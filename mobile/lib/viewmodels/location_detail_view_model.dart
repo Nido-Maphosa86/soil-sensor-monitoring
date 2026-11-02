@@ -44,7 +44,9 @@ class LocationDetailViewModel extends LoadingViewModel<LocationDetail> {
 
   @override
   Set<LiveTopic> get liveTopics => const {LiveTopic.readings};
-
+  
+  @override
+  Duration get liveEvery => Duration.zero;
   void selectTab(int value) {
     _tab = value;
     refresh();
