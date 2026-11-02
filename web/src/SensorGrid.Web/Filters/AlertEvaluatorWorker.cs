@@ -8,7 +8,7 @@ namespace SensorGrid.Web.Filters;
 public sealed class AlertEvaluatorWorker : BackgroundService
 {
     /// <summary>How often the check runs. Each run reads only the newest reading of each sensor, so it is cheap.</summary>
-    private static readonly TimeSpan Every = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan Every = TimeSpan.FromSeconds(2);
 
     private readonly IAlertEvaluator _evaluator;
     private readonly ILogger<AlertEvaluatorWorker> _log;
