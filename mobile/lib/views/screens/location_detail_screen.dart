@@ -147,10 +147,10 @@ class _OfflineBanner extends StatelessWidget {
               detail.selected != null
                   ? detail.lastUpdated == null
                       ? '${detail.selected} has not reported yet.'
-                      : '${detail.selected} has not reported for 1 minute or more (last reading ${ago(detail.lastUpdated!, now)}). These are its last values.'
+                      : '${detail.selected} has not reported for 20 seconds or more (last reading ${ago(detail.lastUpdated!, now)}). These are its last values.'
                   : detail.lastUpdated == null
                       ? 'No sensor in this province has reported yet.'
-                      : 'No sensor has reported for 1 minute or more (last reading ${ago(detail.lastUpdated!, now)}). These are the last values received.',
+                      : 'No sensor has reported for 20 seconds or more (last reading ${ago(detail.lastUpdated!, now)}). These are the last values received.',
               style: sgText(13, color: Sg.tx2, height: 1.45),
             ),
           ),

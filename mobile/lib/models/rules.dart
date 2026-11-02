@@ -10,7 +10,7 @@ import 'enums.dart'; // BandStatus, AlertSeverity, AlertState
 // Rule 2: when a sensor counts as offline.
 class SensorRules {
   /// Rule 2: this long without a reading means the sensor is offline (the same limit as the web console).
-  static const Duration offlineAfter = Duration(minutes: 1);
+  static const Duration offlineAfter = Duration(seconds: 20);
 
   // true when 1 minute or more has passed since the sensor last talked to the gateway
   static bool isOffline(DateTime lastCommunicationUtc, DateTime nowUtc) => nowUtc.difference(lastCommunicationUtc) >= offlineAfter;

@@ -19,7 +19,7 @@ class LiveSignals extends ChangeNotifier {
   LiveSignals(this._repositories);
 
   /// How often the heartbeat counts as a readings change (offline is 1 minute, so 20 seconds shows it in time).
-  static const heartbeat = Duration(seconds: 20);
+  static const heartbeat = Duration(seconds: 5);
 
   final RepositorySet _repositories;
   final List<StreamSubscription<void>> _subscriptions = [];
