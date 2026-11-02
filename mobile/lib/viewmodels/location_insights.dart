@@ -31,10 +31,7 @@ class LocationInsights {
     return true;
   }
 
-  /// True when the probe sent a row of zeros (moisture, conductivity, N, P and K all 0): it is not reading the soil.
-  /// Such rows are left out of the figures, the same rule as the web console.
-  static bool isEmpty(Reading r) => [Parameter.soilMoisture, Parameter.conductivity, Parameter.nitrogen, Parameter.phosphorus, Parameter.potassium]
-      .every((p) => (r.values[p] ?? 0) == 0);
+  
 
   Future<LocationCardData> card(Location loc) async {
     final now = _clock.nowUtc();
@@ -51,7 +48,7 @@ class LocationInsights {
     // Readings of the last hour (all sensors at once), to count them and the share inside the bands.
     final recent = await Future.wait(sensors.map((s) => _readings.readings(loc.id, s.id, now.subtract(window), now)));
     var total = 0, good = 0;
-    for (final r in recent.expand((x) => x).where((r) => !isEmpty(r))) {
+    for (final r in recent.expand((x) => x)) { // every reading counts, zeros included
       total++;
       if (allInRange(r, bands)) good++;
     }

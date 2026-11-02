@@ -30,7 +30,7 @@ class ReportsViewModel extends LoadingViewModel<ReportsData> {
       final sensors = (await _repositories.locations.sensors(loc.id)).where((s) => s.isActive).toList();
       final bands = {for (final t in await _repositories.locations.thresholds(loc.id)) t.parameter: t};
       final sampled = await Future.wait(sensors.map((s) => _repositories.readings.sample(loc.id, s.id, now.subtract(period), now, step)));
-      final rows = sampled.expand((x) => x).where((r) => !LocationInsights.isEmpty(r)).toList();
+      final rows = sampled.expand((x) => x).toList(); // every reading counts, zeros included
 
       double avg(Parameter p) {
         final v = [for (final r in rows) if (r.values[p] != null) r.values[p]!];

@@ -230,8 +230,8 @@ public sealed class AlertEvaluator : IAlertEvaluator
                     continue; // an offline sensor has no fresh reading to judge
                 }
 
-                // a row of zeros means the probe is not reading the soil, not a breach
-                if (latest[sensor.SensorId] is { } reading && !ReadingRule.IsEmpty(reading) && bands.TryGetValue(sensor.SiteId, out var siteBands))
+                // every reading counts, zeros included: very dry soil can read 0, and that must raise an alert
+                if (latest[sensor.SensorId] is { } reading && bands.TryGetValue(sensor.SiteId, out var siteBands))
                 {
                     foreach (var (parameter, band, above) in Analytics.Breaches(reading, siteBands))
                     {

@@ -40,16 +40,6 @@ public static class OfflineRule
         || nowUtc - lastReadingUtc.Value >= SilenceLimit; // or silent for 20 seconds or more
 }
 
-/// <summary>Rule: the probe sends a row of zeros when it is not reading the soil.</summary>
-public static class ReadingRule
-{
-    /// <summary>
-    /// True when moisture, conductivity, N, P and K are all 0. Such a reading is still shown, but it never raises a breach alert,
-    /// otherwise every row of zeros would look like a breach.
-    /// </summary>
-    public static bool IsEmpty(Reading r) =>
-        r.Moisture == 0 && r.Conductivity == 0 && r.Nitrogen == 0 && r.Phosphorus == 0 && r.Potassium == 0;
-}
 
 /// <summary>Rule: works out the state word shown for a sensor in tables.</summary>
 public static class SensorStateRule

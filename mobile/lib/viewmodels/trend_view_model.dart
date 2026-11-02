@@ -11,7 +11,7 @@ import '../models/screen_models.dart';
 import '../repositories/repository_set.dart';
 import 'base_view_model.dart';
 import 'live_signals.dart';
-import 'location_insights.dart';
+
 
 class TrendViewModel extends LoadingViewModel<TrendData> {
   TrendViewModel(this._repositories, super.session, {required this.locationId, required this.parameter, String? sensorId}) : _sensorId = sensorId;
@@ -65,7 +65,7 @@ class TrendViewModel extends LoadingViewModel<TrendData> {
         : await readingRepo.sample(locationId, chosen, from, now, range.step);
     final values = [
       for (final r in rows)
-        if (!LocationInsights.isEmpty(r) && r.values[parameter] != null) (r.capturedAt, r.values[parameter]!)
+        if (r.values[parameter] != null) (r.capturedAt, r.values[parameter]!) // zeros included
     ];
 
     // 15 minutes: the average of each 10 seconds. Longer ranges: already one reading per step.

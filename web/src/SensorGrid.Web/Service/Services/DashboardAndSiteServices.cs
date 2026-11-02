@@ -122,8 +122,7 @@ public sealed class DashboardService : IDashboardService
         var sites = await _scope.VisibleSitesAsync(ctx);
         var sensors = (await _scope.VisibleSensorsAsync(ctx)).Where(s => s.IsActive).ToList();
         var readings = (await _lookup.ReadingsAsync(sensors, from, now)).Values.SelectMany(x => x)
-            .Where(r => !ReadingRule.IsEmpty(r)) // a row of zeros means the probe is not reading the soil, so it is left out of the line
-            .ToList();
+            .ToList(); // every reading is drawn, zeros included
 
         var series = new List<TrendSeriesDto>();
         for (var si = 0; si < sites.Count; si++)
