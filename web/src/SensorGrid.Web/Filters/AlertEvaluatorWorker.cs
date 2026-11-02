@@ -8,7 +8,7 @@ namespace SensorGrid.Web.Filters;
 public sealed class AlertEvaluatorWorker : BackgroundService
 {
     /// <summary>How often the check runs. Each run reads only the newest reading of each sensor, so it is cheap.</summary>
-    private static readonly TimeSpan Every = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan Every = TimeSpan.FromSeconds(0.5);
 
     private readonly IAlertEvaluator _evaluator;
     private readonly ILogger<AlertEvaluatorWorker> _log;
@@ -31,7 +31,7 @@ public sealed class AlertEvaluatorWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                _log.LogError(ex, "Alert check failed; it will be tried again in 2 seconds.");
+                _log.LogError(ex, "Alert check failed; it will be tried again in 10 seconds.");
             }
         } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
