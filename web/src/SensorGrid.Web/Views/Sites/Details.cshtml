@@ -35,7 +35,7 @@
   <span class="dotpill" style="color:@Ui.Colour(Model.SummaryTone)"><s style="background:@Ui.Colour(Model.SummaryTone)"></s>@Model.Summary</span>
   <span class="cap">· @Model.Source</span></div>
 
-<div class="grid g4" data-live="gauges" data-live-every="10">
+<div class="grid g4" data-live="gauges" data-live-every="1">
 @foreach (var p in Model.Parameters)
 {
   <partial name="_Gauge" model="p" />
@@ -48,7 +48,7 @@
     <div class="cap">@Model.SensorsCaption</div>
     @if (shell.IsAdmin){<a class="btn ghost sm push" asp-controller="Sensors" asp-action="Register" asp-route-site="@Model.SiteId">Register sensor</a>}
   </div>
-  <div class="tablewrap" data-live="sensors" data-live-every="10">
+  <div class="tablewrap" data-live="sensors" data-live-every="1">
     <table><thead><tr>@foreach (var h in new[] { "Sensor", "Installed", "Last reading", "Status" }){<th>@h.ToUpperInvariant()</th>}</tr></thead>
     <tbody>
     @foreach (var s in Model.Sensors)
